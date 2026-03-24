@@ -1,0 +1,24 @@
+# MkDocs & Theme
+mkdocs
+mkdocs-material
+mkdocs-material[imaging]
+markdown-include-variants
+
+# Plugins used in FastAPI docs
+mkdocstrings[python]
+griffe-typingdoc
+mkdocs-macros-plugin
+mkdocs-social-plugin
+mkdocs-redirects
+mkdocs-static-i18n
+mdx-include
+
+# FastAPI Source Dependencies (needed for mkdocstrings to import code)
+fastapi
+httpx
+starlette
+pydantic
+pydantic-settings
+anyio
+email-validator
+
