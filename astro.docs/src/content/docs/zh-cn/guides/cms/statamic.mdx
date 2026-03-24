@@ -1,0 +1,123 @@
+---
+title: 无头模式的 Statamic 与 Astro
+description: 将 Statamic 作为 CMS 并为你的 Astro 项目添加内容
+sidebar:
+  label: Statamic
+type: cms
+stub: false
+logo: statamic
+i18nReady: true
+---
+import Grid from '~/components/FluidGrid.astro'
+import Card from '~/components/ShowcaseCard.astro'
+
+[Statamic](https://statamic.com/) 是一个现代的、文档扁平的 CMS。它允许开发人员轻松创建动态网站和应用程序，同时提供直观和用户友好的界面供内容编辑者管理内容。
+
+## 与 Astro 的集成
+
+Statamic 提供了内置的 [REST API](https://statamic.dev/rest-api) 和 [GraphQL API](https://statamic.dev/graphql)，用于将你的数据与 Astro 进行连接。
+
+### 前期准备
+
+首先，你需要具备以下条件：
+
+1. REST API 和 GraphQL API 仅在 Statamic 的专业版中可用。你可以在 [本地机器](https://statamic.dev/tips/how-to-enable-statamic-pro#trial-mode) 上免费试用专业版。
+2. **Astro 项目** - 如果你还需要一个 Astro 项目，我们的 [安装指南](/zh-cn/install-and-setup/) 将帮助你快速启动。
+3. **Statamic 站点** - 如果你需要一个 Statamic 网站，[这个指南](https://statamic.dev/quick-start-guide) 将帮助你入门。记得在 `.env` 文件中添加 `STATAMIC_API_ENABLED=true` 或 `STATAMIC_GRAPHQL_ENABLED=true` 来启用 REST API 或 GraphQL API，并在 API 配置文件中启用所需资源。
+
+:::caution
+所有的示例都假设你的网站有一个叫做 `posts` 的集合，该集合拥有一个叫做 `post` 的蓝图，并且该蓝图具有一个标题字段（字段类型为文本）和一个内容字段（字段类型为 Markdown）。
+:::
+
+### 获取数据
+:::caution
+如果你在本地同时使用 Statamic 和 Astro，请记得在获取 API 时使用 `127.0.0.1` 而不是 `localhost`。
+
+在向 Astro 服务器发起请求时，`localhost` 不会像在浏览器中一样正确解析，因此任何对 API 的请求都会失败。
+:::
+
+#### REST API
+
+从你站点的 REST API URL 获取 Statamic 数据。默认情况下，它是 `https://[你的站点]/api/`。然后，你可以使用 Astro 的 `set:html={}` 指令来渲染你的数据属性。
+
+例如，要显示所选 [集合](https://statamic.dev/collections) 中的标题和内容列表：
+
+```astro title="src/pages/index.astro"
+---
+const res = await fetch("https://[YOUR-SITE]/api/collections/posts/entries?sort=-date")
+const posts = await res.json()
+---
+<h1>Astro + Statamic 🚀</h1>
+{
+  posts.map((post) => (
+      <h2 set:html={post.title} />
+      <p set:html={post.content} />
+  ))
+}
+```
+
+#### GraphQL
+
+通过站点的 GraphQL API URL 获取你的 Statamic 数据。同样地，默认情况下它是 `https://[你的网站]/graphql/`。然后，你可以使用 Astro 的 `set:html={}` 指令来渲染你的数据属性。
+
+例如，要显示所选 [集合](https://statamic.dev/collections) 中的标题和内容列表：
+
+```astro title="src/pages/index.astro"
+---
+const graphqlQuery = {
+  query: `
+    query Entries($page: Int, $locale: String) {
+      entries(
+        collection: "posts"
+        sort: "date asc"
+        limit: 20
+        page: $page
+        filter: { locale: $locale }
+      ) {
+        current_page
+        has_more_pages
+        data {
+          title
+          ... on Entry_Posts_Post {
+              content
+            }
+        }
+      }
+    }
+  `,
+  variables: {
+    page: page,
+    locale: locale,
+  },
+};
+const res = await fetch("https://[YOUR-SITE]/graphql", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(graphqlQuery),
+})
+const { data } = await res.json();
+const entries = data?.entries;
+---
+<h1>Astro + Statamic 🚀</h1>
+{
+  entries.data.map((post) => (
+      <h2 set:html={post.title} />
+      <p set:html={post.content} />
+  ))
+}
+```
+
+### 发布你的网站
+
+要部署你的 Astro 网站，请访问我们的[部署指南](/zh-cn/guides/deploy/)，并按照你所选择的托管提供商的说明进行操作。
+
+## 社区资源
+
+-  [使用 Statamic 作为无头 CMS 构建静态站点的教程](https://buddy.works/guides/statamic-rest-api)
+-  [在无头的 Statamic 中为 Astro 实现实时预览](https://maciekpalmowski.dev/implementing-live-previews-in-headless-statamic-when-using-astro/)
+
+## Themes
+
+<Grid>
+  <Card title="Creek" href="https://astro.build/themes/details/creek/" thumbnail="creek.png"/>
+</Grid>

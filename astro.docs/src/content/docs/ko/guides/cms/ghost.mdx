@@ -1,0 +1,305 @@
+---
+title: Ghost & Astro
+description: Ghost를 CMS로 사용하여 Astro 프로젝트에 콘텐츠 추가
+sidebar:
+  label: Ghost
+type: cms
+stub: false
+logo: ghost
+i18nReady: true
+---
+
+import { FileTree, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import PackageManagerTabs from '~/components/tabs/PackageManagerTabs.astro'
+
+[Ghost](https://github.com/TryGhost/Ghost)는 Node.js를 기반으로 구축된 오픈 소스, 헤드리스 콘텐츠 관리 시스템입니다.
+
+## Astro와 통합
+
+이 섹션에서는 [Ghost 콘텐츠 API](https://ghost.org/docs/content-api/)를 사용하여 데이터를 Astro 프로젝트로 가져옵니다.
+
+### 전제조건
+
+시작하려면 다음이 필요합니다.
+
+1. **Astro 프로젝트** - 아직 Astro 프로젝트가 없다면 [설치 가이드](/ko/install-and-setup/)를 참조하여 즉시 설치하고 실행할 수 있습니다.
+
+2. **Ghost 사이트** - Ghost로 설정된 사이트가 있다고 가정합니다. 그렇지 않은 경우 [로컬 환경](https://ghost.org/docs/install/local/)에서 설정할 수 있습니다.
+
+3. **Content API Key** - 사이트의 `Settings > Integrations`에서 통합할 수 있습니다. 거기에서 `Content API key`를 찾을 수 있습니다.
+
+### 자격 증명 설정
+
+사이트의 자격 증명을 Astro에 추가하려면 다음 변수를 사용하여 프로젝트 루트에 `.env` 파일을 만듭니다.
+
+```ini title=".env"
+CONTENT_API_KEY=YOUR_API_KEY
+```
+
+이제 프로젝트에서 이 환경 변수를 사용할 수 있습니다.
+
+환경 변수에 IntelliSense를 사용하려면 `src/` 디렉터리에 `env.d.ts` 파일을 만들고 다음과 같이 `ImportMetaEnv`를 구성하면 됩니다.
+
+```ts title="src/env.d.ts"
+interface ImportMetaEnv {
+  readonly CONTENT_API_KEY: string;
+}
+```
+
+:::tip
+Astro의 [환경 변수 사용](/ko/guides/environment-variables/) 및 `.env` 파일에 대해 자세히 알아보세요.
+:::
+
+이제 루트 디렉터리에 다음과 같은 새 파일이 포함되어야 합니다.
+
+<FileTree title="Project Structure">
+- src/
+  - **env.d.ts**
+- **.env**
+- astro.config.mjs
+- package.json
+</FileTree>
+
+### 종속성 설치
+
+Ghost와 연결하려면 선호하는 패키지 관리자에 대해 아래 명령을 사용하여 공식 콘텐츠 API 래퍼 [`@tryghost/content-api`](https://www.npmjs.com/package/@tryghost/content-api)를 설치하고, TypeScript를 사용하는 경우 선택적으로 타입 정의가 포함된 유용한 패키지를 설치하세요.
+
+<PackageManagerTabs>
+  <Fragment slot="npm">
+  ```shell
+  npm install @tryghost/content-api
+  npm install --save @types/tryghost__content-api
+  ```
+  </Fragment>
+  <Fragment slot="pnpm">
+  ```shell
+  pnpm add @tryghost/content-api
+  pnpm add --save-dev @types/tryghost__content-api
+  ```
+  </Fragment>
+  <Fragment slot="yarn">
+  ```shell
+  yarn add @tryghost/content-api
+  yarn add --dev @types/tryghost__content-api
+  ```
+  </Fragment>
+</PackageManagerTabs>
+
+## Astro와 Ghost로 블로그 만들기
+
+위 설정을 사용하면 이제 Ghost를 CMS로 사용하는 블로그를 만들 수 있습니다.
+
+### 전제조건
+
+1. Ghost 블로그
+2. [Ghost 콘텐츠 API](https://www.npmjs.com/package/@tryghost/content-api)와 통합된 Astro 프로젝트 - Ghost로 Astro 프로젝트를 설정하는 방법에 대한 자세한 내용은 [Astro와 통합](#astro와-통합)을 참조하세요.
+
+이 예시에서는 동적으로 생성된 개별 게시물 페이지에 대한 링크가 포함된 게시물을 나열하는 인덱스 페이지를 만듭니다.
+
+### 데이터 가져오기
+
+Ghost 콘텐츠 API 패키지를 사용하여 사이트의 데이터를 가져올 수 있습니다.
+
+먼저 `lib` 디렉터리 아래에 `ghost.ts` 파일을 만듭니다.
+
+<FileTree title="Project Structure">
+- src/
+  - lib/
+    - **ghost.ts**
+  - pages/
+    - index.astro
+- astro.config.mjs
+- package.json
+</FileTree>
+
+Ghost 대시보드의 통합 페이지에서 API 키를 사용하여 Ghost API로 API 인스턴스를 초기화하세요.
+
+```ts title="src/lib/ghost.ts"
+
+import GhostContentAPI from '@tryghost/content-api';
+
+// 사이트 자격 증명으로 API 인스턴스 생성
+export const ghostClient = new GhostContentAPI({
+    url: 'http://127.0.0.1:2368', // 사이트가 로컬 환경에서 실행되는 경우 기본 URL입니다.
+    key: import.meta.env.CONTENT_API_KEY,
+    version: 'v5.0',
+});
+
+```
+
+### 게시물 목록 표시하기
+
+`src/pages/index.astro` 페이지에는 게시물 목록이 표시되며 각 게시물에는 설명과 해당 페이지에 대한 링크가 포함됩니다.
+
+<FileTree title="Project Structure">
+- src/
+  - lib/
+    - ghost.ts
+  - pages/
+    - **index.astro**
+- astro.config.mjs
+- package.json
+</FileTree>
+
+Ghost에서 블로그 게시물에 엑세스하기 위해 `posts.browse()` 메서드를 사용해야 합니다. 이를 위해 Astro 프런트매터에서 `ghostClient()`를 가져오세요. 그리고 모든 게시물을 검색하기 위해 `limit: all`을 설정하세요.
+
+```astro title="src/pages/index.astro"
+---
+import { ghostClient } from '../lib/ghost';
+const posts = await ghostClient.posts
+    .browse({
+        limit: 'all',
+    })
+    .catch((err) => {
+        console.error(err);
+    });
+---
+```
+
+콘텐츠 API를 가져오면 다음과 같은 [각 게시물의 속성](https://ghost.org/docs/content-api/#posts)을 포함하는 객체 배열이 반환됩니다.
+- `title` - 게시물 제목
+- `html` - 게시물 내용의 HTML 렌더링
+- `feature_image` - 게시물의 추천 이미지 소스 URL
+- `slug` - 게시물의 슬러그
+
+가져와 반환된 `posts` 배열을 사용하여 페이지에 블로그 게시물 목록을 표시합니다.
+
+```astro title="src/pages/index.astro"
+---
+import { ghostClient } from '../lib/ghost';
+const posts = await ghostClient.posts
+    .browse({
+        limit: 'all',
+    })
+    .catch((err) => {
+        console.error(err);
+    });
+---
+
+<html lang="en">
+    <head>
+        <title>Astro + Ghost 👻</title>
+    </head>
+    <body>
+
+        {
+            posts.map((post) => (
+                <a href={`/post/${post.slug}`}>
+                    <h1> {post.title} </h1>
+                </a>
+            ))
+        }
+    </body>
+</html>
+```
+
+### 페이지 생성
+
+`src/pages/post/[slug].astro` 페이지는 각 게시물에 대해 [동적으로 페이지를 생성](/ko/guides/routing/#동적-라우트)합니다.
+
+<FileTree title="Project Structure">
+- src/
+  - lib/
+    -  ghost.ts
+  - pages/
+    - index.astro
+    - post/
+      - **[slug].astro**
+- astro.config.mjs
+- package.json
+</FileTree>
+
+`posts.browse()`를 사용하여 props로 게시물을 반환하는 블로그 게시물에 액세스하기 위해 각 동적 경로에서 `ghostClient()`를 가져오세요.
+
+```astro title="src/pages/post/[slug].astro"
+---
+import { ghostClient } from '../../lib/ghost';
+
+export async function getStaticPaths() {
+    const posts = await ghostClient.posts
+        .browse({
+            limit: 'all',
+        })
+        .catch((err) => {
+            console.error(err);
+        });
+
+    return posts.map((post) => {
+        return {
+            params: {
+                slug: post.slug,
+            },
+            props: {
+                post: post,
+            },
+        };
+    });
+}
+
+const { post } = Astro.props;
+---
+```
+
+각 `post` 객체의 속성을 사용하여 각 페이지에 대한 템플릿을 만듭니다.
+
+```astro title="src/pages/post/[slug].astro" ins={24-37}
+---
+import { ghostClient } from '../../lib/ghost';
+export async function getStaticPaths() {
+    const posts = await ghostClient.posts
+        .browse({
+            limit: 'all',
+        })
+        .catch((err) => {
+            console.error(err);
+        });
+    return posts.map((post) => {
+        return {
+            params: {
+                slug: post.slug,
+            },
+            props: {
+                post: post,
+            },
+        };
+    });
+}
+const { post } = Astro.props;
+---
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>{post.title}</title>
+    </head>
+    <body>
+        <img src={post.feature_image} alt={post.title} />
+
+        <h1>{post.title}</h1>
+        <p>{post.reading_time} min read</p>
+
+        <Fragment set:html={post.html} />
+    </body>
+</html>
+```
+:::note
+`<Fragment />`는 불필요한 래퍼 요소를 방지할 수 있는 내장된 Astro 컴포넌트입니다. 이는 CMS (예: Ghost 또는 [WordPress](/ko/guides/cms/wordpress/))에서 HTML을 가져올 때 특히 유용할 수 있습니다.
+:::
+
+### 사이트 게시
+
+사이트를 배포하려면 [배포 가이드](/ko/guides/deploy/)를 방문하여 선호하는 호스팅 제공업체의 지침을 따르세요.
+
+## 커뮤니티 자료
+
+<CardGrid>
+
+  <LinkCard title="Ghost CMS & Astro 튜토리얼" href="https://matthiesen.xyz/blog/astro-ghostcms" />
+  <LinkCard title="Astro + Ghost + Tailwind CSS" href="https://andr.ec/posts/astro-ghost-blog/" />
+  <LinkCard title="Astro와 Ghost로 기업 사이트 구축하기" href="https://artabric.com/post/building-a-corporate-site-with-astro-and-ghost/" />
+  <LinkCard title="`astro-starter-ghost`" href="https://github.com/PhilDL/astro-starter-ghost" />
+
+</CardGrid>
+
+:::note[공유할 리소스가 있나요?]
+Astro와 Ghost를 함께 사용하는 방법에 대한 유용한 비디오나 블로그 게시물을 찾았거나 직접 만들었다면, [이 목록](https://github.com/withastro/docs/edit/main/src/content/docs/en/guides/cms/ghost.mdx)에 추가해 주세요!
+:::

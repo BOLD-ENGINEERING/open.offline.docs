@@ -1,0 +1,222 @@
+---
+title: 无头（headless）模式的 WordPress 与 Astro
+description: 将 WordPress 作为 CMS 并为你的 Astro 项目添加内容
+sidebar:
+  label: WordPress
+type: cms
+stub: false
+logo: wordpress
+i18nReady: true
+---
+import { FileTree, LinkCard, CardGrid  } from '@astrojs/starlight/components';
+import Grid from '~/components/FluidGrid.astro'
+import Card from '~/components/ShowcaseCard.astro'
+
+[WordPress](https://wordpress.org/) 是一个内容管理系统，虽然它包含了自己的前端，但也可以作为无头（headless）CMS 用于为你的 Astro 项目提供内容。
+
+## 与 Astro 集成
+
+WordPress 自带了内置的 [WordPress REST API](https://developer.wordpress.org/rest-api/)，用于将你的 WordPress 数据连接到 Astro。你还可以选择在你的站点上安装 [WPGraphQL](https://wordpress.org/plugins/wp-graphql/) 或 [Gato GraphQL](https://wordpress.org/plugins/gatographql/) 来使用 GraphQL。
+
+### 前期准备
+
+在开始前，你需要具备以下条件：
+
+1. **一个 Astro 项目** - 如果你还没有 Astro 项目，我们的[安装指南](/zh-cn/install-and-setup/)可以帮助你快速上手；
+2. **一个 WordPress 站点** - 你的站点的 REST API 是 `[YOUR_SITE]/wp-json/wp/v2/`，并在任何 WordPress 站点上都是默认提供的。你也可以在[本地环境上安装 WordPress](https://wordpress.org/support/article/installing-wordpress-on-your-own-computer/)。
+
+### 设置凭据
+
+你的 WordPress REST API 默认情况下可以被外部请求以无需认证的方式获取数据。这不让用户修改你的数据或站点设置，而是让你在 Astro 项目中使用数据而无需任何凭据。
+
+如果需要的话，你可以选择[要求身份验证](https://developer.wordpress.org/rest-api/frequently-asked-questions/#require-authentication-for-all-requests)。
+
+### 获取数据
+
+通过你的站点唯一的 REST API URL 和内容的路由来获取你的 WordPress 数据（对于博客，通常是 `posts`），然后你可以使用 Astro 的 `set:html={}` 指令来渲染数据属性。
+
+例如，要显示一个帖子标题和内容的列表：
+
+```astro title="src/pages/index.astro"
+---
+const res = await fetch("https://[你的站点]/wp-json/wp/v2/posts");
+const posts = await res.json();
+---
+<h1>Astro + WordPress 🚀</h1>
+{
+  posts.map((post) => (
+      <h2 set:html={post.title.rendered} />
+      <p set:html={post.content.rendered} />
+  ))
+}
+```
+
+WordPress REST API 包含了 [全局参数](https://developer.wordpress.org/rest-api/using-the-rest-api/global-parameters/)，如 `_fields` 和 `embed`。
+
+所以可通过此 API 获取大量的数据，你也可能希望仅获取特定字段。你可以通过在 API URL 中添加 [`_fields`](https://developer.wordpress.org/rest-api/using-the-rest-api/global-parameters/#_fields) 参数来限制响应，例如：`[你的站点]/wp/v2/posts?_fields=author, id, excerpt, title, link`。
+
+API 还可以返回与文章相关的内容，例如父级文章的链接或评论。你可以在 API URL 中添加 [`_embed`](https://developer.wordpress.org/rest-api/using-the-rest-api/global-parameters/#_embed) 参数（例如 `[你的站点]/wp/v2/posts?_embed`），提示服务器在响应中包含这些嵌入资源。
+
+## 使用 WordPress 和 Astro 构建博客
+
+该示例从 [https://norian.studio/dinosaurs/](https://norian.studio/dinosaurs/) 的公共 WordPress API 中获取数据。该 WordPress 站点将有关个别恐龙的信息存储在 `dinos` 路径下，就像博客将个别博文存储在 `posts` 路径下一样。
+
+该示例展示如何在 Astro 中复制此站点结构：一个索引页面，列出恐龙并链接至动态生成的个别恐龙页面。
+
+:::note
+要在 WordPress API 中使用[自定义文章类型（CPT）](https://learn.wordpress.org/lesson-plan/custom-post-types/)（不只是 `post` 和 `page`），你需要在 WordPress 仪表盘中[进行配置](https://stackoverflow.com/questions/48536646/how-can-i-get-data-from-custom-post-type-using-wp-rest-api)，或在 WordPress 中[为自定义内容类型添加 REST API 支持](https://developer.wordpress.org/rest-api/extending-the-rest-api/adding-rest-api-support-for-custom-content-types/)。
+
+该示例从已设置和公开至 REST API 的 WordPress 站点获取数据。
+:::
+
+### 显示 WordPress 文章列表
+
+页面 `src/pages/index.astro` 列出每个恐龙的描述，并提供链接至其独立页面。
+
+<FileTree title="Project Structure">
+- src/
+  - pages/
+    - **index.astro**
+    - dinos/
+      - [slug].astro
+- astro.config.mjs
+- package.json
+</FileTree>
+
+通过 API 获取的对象包含以下属性：
+
+-  `title.rendered` - 包含文章标题的 HTML 渲染结果；
+-  `content.rendered` - 包含文章内容的 HTML 渲染结果；
+-  `slug` - 包含文章的 slug（用于生成动态生成的个别恐龙页面的链接）。
+
+```astro title="/src/pages/index.astro"
+---
+import Layout from "../layouts/Layout.astro";
+
+let res = await fetch("https://norian.studio/wp-json/wp/v2/dinos");
+let posts = await res.json();
+---
+<Layout title="Dinos!">
+  <section>
+    <h1>List of Dinosaurs</h1>
+    {
+      posts.map((post) => (
+        <article>
+          <h2>
+            <a href={`/dinos/${post.slug}/`} set:html={post.title.rendered} />
+          </h2>
+          <Fragment set:html={post.content.rendered} />
+        </article>
+      ))
+    }
+  </section>
+</Layout>
+```
+
+### 使用 WordPress API 生成页面
+
+页面 `src/pages/dinos/[slug].astro` 为每个恐龙 [动态生成了一个页面](/zh-cn/guides/routing/#动态路由)。
+
+```astro title="/src/pages/dinos/[slug].astro"
+---
+import Layout from '../../layouts/Layout.astro';
+
+const { slug } = Astro.params;
+
+let res = await fetch(`https://norian.studio/wp-json/wp/v2/dinos?slug=${slug}`);
+let [post] = await res.json();
+
+// The getStaticPaths() 仅适用于静态的 Astro 站点，
+// 在 SSR 模式下你不需要使用这个函数。
+export async function getStaticPaths() {
+  let data = await fetch("https://norian.studio/wp-json/wp/v2/dinos");
+  let posts = await data.json();
+
+  return posts.map((post) => ({
+    params: { slug: post.slug },
+    props: { post: post },
+  }));
+}
+---
+<Layout title={post.title.rendered}>
+  <article>
+    <h1 set:html={post.title.rendered} />
+    <Fragment set:html={post.content.rendered} />
+  </article>
+</Layout>
+```
+
+### 返回嵌入资源
+
+`_embed` 查询参数会告诉服务器返回相关的（嵌入的）资源。
+
+```astro title="src/pages/dinos/[slug].astro" /&_embed/
+---
+const { slug } = Astro.params;
+
+let res = await fetch(`https://norian.studio/wp-json/wp/v2/dinos?slug=${slug}&_embed`);
+let [post] = await res.json();
+---
+```
+
+返回 `_embedded['wp:featuredmedia']['0'].media_details.sizes.medium.source_url` 属性，并用于在每个恐龙页面上显示特色图像。（可将 `medium` 替换为你所需的图像尺寸。）
+
+```astro title="/src/pages/dinos/[slug].astro" {3}
+<Layout title={post.title.rendered}>
+  <article>
+    <img src={post._embedded['wp:featuredmedia']['0'].media_details.sizes.medium.source_url} />
+    <h1 set:html={post.title.rendered} />
+    <Fragment set:html={post.content.rendered} />
+  </article>
+</Layout>
+```
+
+### 发布你的网站
+
+要部署你的网站，请访问我们的[部署指南](/zh-cn/guides/deploy/)，并按照你偏好的托管提供商的步骤说明进行操作。
+
+## 社区资源
+
+-  Chris Bongers 的文章 [使用 WordPress 作为无头 CMS 构建 Astro 网站](https://blog.openreplay.com/building-an-astro-website-with-wordpress-as-a-headless-cms/)。
+-  Ben Holmes 的直播 [使用 Astro 和 WordPress 进行构建](https://www.youtube.com/watch?v=Jstqgklvfnc)。
+-  Jeff Everhart 的文章 [使用 Astro 构建无头 WordPress 网站](https://developers.wpengine.com/blog/building-a-headless-wordpress-site-with-astro)。
+-  Darko Bozhinovski 的文章 [Astro 和 WordPress 作为 API](https://darko.io/posts/wp-as-an-api/)。
+
+## 生产环境网站
+
+以下网站在生产环境中使用 Astro + WordPress：
+
+-  Anindo Neel Dutta 的 [Dinos!](https://wc-dinos.netlify.app/) — [GitHub 上的源代码](https://github.com/leen-neel/astro-wordpress)。
+
+## 主题
+
+<Grid>
+  <Card title="Astro WordPress Starter" href="https://astro.build/themes/details/astro-wordpress-starter/" thumbnail="astro-wordpress-starter.png"/>
+</Grid>
+
+## 社区资源 
+
+<CardGrid>
+
+  <LinkCard href="https://dev.to/bngmnn/leveraging-wordpress-as-a-headless-cms-for-your-astro-website-a-comprehensive-guide-a4d" title="Astro + WordPress 入门指南"/>
+  <LinkCard title="Astro + WPGraphQL 打造更安全的 WordPress 网站" href="https://www.youtube.com/watch?v=fWxn-r83ygQ" />
+  <LinkCard title="利用 Astro 内容层 API 突破无头 WordPress 构建速度极限" href="https://andrewkepson.com/blog/headless-wordpress/build-time-astro-content-layer-api/"/>
+  <LinkCard title="如何使用 Astro 搭建无头 WordPress 站点" href="https://dev.to/mathiasahlgren/how-to-set-up-a-headless-wordpress-site-with-astro-3a2h" />
+  <LinkCard title="用 WordPress 和 Astro 构建静态网站" href="https://kinsta.com/blog/wordpress-astro/" />
+  <LinkCard title="使用 Astro 实现无头 WordPress" href="https://www.youtube.com/watch?v=MP2TR6Z_YTc" />
+  <LinkCard title="利用 WordPress 作为 Astro 网站的无头 CMS：API 配置与数据获取" href="https://medium.com/@bangemann.dev/configure-wordpress-rest-api-setup-data-fetching-4af5161095f6" />
+  <LinkCard title="WordPress 无头架构与 Astro - 安装 Astro 并通过 WP-GraphQL 获取文章" href="https://www.youtube.com/watch?v=2PSqABrME28" />
+  <LinkCard title="使用 Astro 构建无头 WordPress 网站" href="https://www.youtube.com/watch?v=54U7dVmhyxE" />
+  <LinkCard title="WPEngine Astro 无头 WordPress 入门演示" href="https://www.youtube.com/watch?v=BcoxZZIfESI" />
+  <LinkCard title="无头 WordPress 与 Astro — 使用 Tailwind CSS 从零构建简易博客" href="https://fullstackdigital.io/blog/headless-wordpress-with-astro-build-a-simple-blog/" />
+  <LinkCard title="使用无头 WordPress 和 Astro 构建电子商务网站" href="https://shaxadd.medium.com/building-an-e-commerce-website-with-headless-wordpress-and-astro-2712d8c8b735" />
+   <LinkCard title="使用 Astro 构建无头 WordPress 网站" href="https://wpengine.com/builders/building-headless-wordpress-site-astro/" />
+  <LinkCard title="使用 WordPress 作为无头 CMS 构建 Astro 网站" href="https://blog.openreplay.com/building-an-astro-website-with-wordpress-as-a-headless-cms/" />
+
+
+</CardGrid>
+
+:::note[有想要分享的资源吗？]
+如果你找到（或制作）了关于使用无头 WordPress 与 Astro 的视频或博客文章，请将其 [添加到这个列表中](https://github.com/withastro/docs/edit/main/src/content/docs/en/guides/cms/wordpress.mdx)！
+:::
+
