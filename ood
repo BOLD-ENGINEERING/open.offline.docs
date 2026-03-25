@@ -3,6 +3,7 @@
 set -e
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 VENV_DIR="$BASE_DIR/.venv"
 REQUIREMENTS="$BASE_DIR/requirements.txt"
 
@@ -87,7 +88,6 @@ if $STOP; then
   exit 0
 fi
 
-# Setup Python environment if needed
 needs_python_env=false
 if $RUN_ALL; then
   needs_python_env=true
