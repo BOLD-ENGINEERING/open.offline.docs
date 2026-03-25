@@ -188,10 +188,10 @@ elif [ -n "$ONLY" ]; then
   run_selected
 else
   echo "Usage:"
-  echo "  ./ood --all"
-  echo "  ./ood --only php,astro"
-  echo "  ./ood --only fastapi --port fastapi=9000"
-  echo "  ./ood stop"
+  echo "  bash ood --all"
+  echo "  bash ood --only php,astro"
+  echo "  bash ood --only fastapi --port fastapi=9000"
+  echo "  bash ood stop"
   exit 1
 fi
 
