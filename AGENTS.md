@@ -13,6 +13,24 @@ This is a multi-framework documentation repository containing:
 
 ## Build Commands
 
+### All Docs Servers (Recommended)
+
+```bash
+# Run all documentation servers (uses shared root .venv for Python services)
+./ood --all
+
+# Run specific services
+./ood --only fastapi,alpine  # Python services
+./ood --only astro           # Astro service
+./ood --only php,python      # Static docs
+
+# Stop all servers
+./ood stop
+
+# Customize ports
+./ood --only fastapi --port fastapi=9000
+```
+
 ### Astro Docs (astro.docs/)
 
 ```bash
@@ -27,25 +45,12 @@ pnpm lint:linkcheck   # Check all links (builds first)
 pnpm lint:slugcheck   # Verify translation slugs match English
 ```
 
-### FastAPI Docs (fastapi.docs/)
+### FastAPI/Alpine Docs (Python MkDocs)
 
-```bash
-cd fastapi.docs
-# Activate virtual environment first: source .venv/bin/activate
-mkdocs serve         # Start dev server
-mkdocs build         # Production build
-pytest               # Run all tests
-pytest path/to/test  # Run a single test file
-```
-
-### Alpine Docs (alpine.docs/)
-
-```bash
-cd alpine.docs
-# Activate virtual environment first
-mkdocs serve         # Start dev server
-mkdocs build         # Production build
-```
+Python services use shared root virtual environment managed by the `ood` script:
+- `.venv/` in root is automatically created and activated by `ood`
+- `requirements.txt` in root contains all MkDocs dependencies
+- For manual testing: `source .venv/bin/activate` then `cd fastapi.docs && mkdocs serve`
 
 ## Running Tests
 
@@ -53,6 +58,7 @@ mkdocs build         # Production build
 FastAPI docs tests use pytest with TestClient:
 ```bash
 cd fastapi.docs
+source ../.venv/bin/activate  # Activate root venv
 pytest docs_src/app_testing/app_a_py310/test_main.py::test_read_main
 ```
 
@@ -146,3 +152,5 @@ No automated test suite. Use manual testing via `pnpm dev` and build verificatio
 - Use `pnpm run format` to ensure code style consistency
 - The repo uses pnpm in astro.docs, pip for Python projects
 - No automated testing for astro.docs - verify manually in dev server
+- Python MkDocs sites (fastapi, alpine) share root `.venv/` managed by `./ood` script
+- Use `./ood --all` to run all doc servers with proper Python environment setup
