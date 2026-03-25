@@ -1,4 +1,4 @@
-# open.docs
+# Open Offline Documentation
 
 Monolithic repository of forked open-source frameworks and programming language documentation for offline development.
 
