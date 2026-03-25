@@ -4,7 +4,6 @@ set -e
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Default ports
 PHP_PORT=8002
 PYTHON_PORT=8001
 FASTAPI_PORT=8000
@@ -15,7 +14,6 @@ ONLY=""
 RUN_ALL=false
 STOP=false
 
-# -------- Parse args --------
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --only)
@@ -27,7 +25,6 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --port)
-      # format: name=port
       IFS='=' read -r name port <<< "$2"
       case "$name" in
         php) PHP_PORT=$port ;;
@@ -50,7 +47,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# -------- Stop function --------
 stop_all() {
   echo "Stopping all docs servers..."
   pkill -f "http.server" 2>/dev/null || true
@@ -64,7 +60,6 @@ if $STOP; then
   exit 0
 fi
 
-# -------- Service runners --------
 run_php() {
   if [ -d "$BASE_DIR/php.docs" ]; then
     echo "[php] -> http://127.0.0.1:$PHP_PORT"
@@ -110,7 +105,6 @@ run_astro() {
   fi
 }
 
-# -------- Runner logic --------
 run_selected() {
   IFS=',' read -ra SERVICES <<< "$ONLY"
   for svc in "${SERVICES[@]}"; do
@@ -133,7 +127,6 @@ run_all() {
   run_astro
 }
 
-# -------- Execution --------
 if $RUN_ALL; then
   run_all
 elif [ -n "$ONLY" ]; then
@@ -147,5 +140,4 @@ else
   exit 1
 fi
 
-# Keep script alive
 wait
