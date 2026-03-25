@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+
+set -e
+
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Default ports
+PHP_PORT=8002
+PYTHON_PORT=8001
+FASTAPI_PORT=8000
+ALPINE_PORT=8004
+ASTRO_PORT=8003
+
+ONLY=""
+RUN_ALL=false
+STOP=false
+
+# -------- Parse args --------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --only)
+      ONLY="$2"
+      shift 2
+      ;;
+    --all)
+      RUN_ALL=true
+      shift
+      ;;
+    --port)
+      # format: name=port
+      IFS='=' read -r name port <<< "$2"
+      case "$name" in
+        php) PHP_PORT=$port ;;
+        python) PYTHON_PORT=$port ;;
+        fastapi) FASTAPI_PORT=$port ;;
+        alpine) ALPINE_PORT=$port ;;
+        astro) ASTRO_PORT=$port ;;
+        *) echo "Unknown service for --port: $name"; exit 1 ;;
+      esac
+      shift 2
+      ;;
+    stop)
+      STOP=true
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+done
+
+# -------- Stop function --------
+stop_all() {
+  echo "Stopping all docs servers..."
+  pkill -f "http.server" 2>/dev/null || true
+  pkill -f "mkdocs" 2>/dev/null || true
+  pkill -f "pnpm dev" 2>/dev/null || true
+  echo "Done."
+}
+
+if $STOP; then
+  stop_all
+  exit 0
+fi
+
+# -------- Service runners --------
+run_php() {
+  if [ -d "$BASE_DIR/php.docs" ]; then
+    echo "[php] -> http://127.0.0.1:$PHP_PORT"
+    (cd "$BASE_DIR/php.docs" && python -m http.server "$PHP_PORT") &
+  else
+    echo "[php] skipped (dir missing)"
+  fi
+}
+
+run_python() {
+  if [ -d "$BASE_DIR/python.docs" ]; then
+    echo "[python] -> http://127.0.0.1:$PYTHON_PORT"
+    (cd "$BASE_DIR/python.docs" && python -m http.server "$PYTHON_PORT") &
+  else
+    echo "[python] skipped (dir missing)"
+  fi
+}
+
+run_fastapi() {
+  if [ -d "$BASE_DIR/fastapi.docs" ]; then
+    echo "[fastapi] -> http://127.0.0.1:$FASTAPI_PORT"
+    (cd "$BASE_DIR/fastapi.docs" && mkdocs serve -a 127.0.0.1:$FASTAPI_PORT) &
+  else
+    echo "[fastapi] skipped (dir missing)"
+  fi
+}
+
+run_alpine() {
+  if [ -d "$BASE_DIR/alpine.docs" ]; then
+    echo "[alpine] -> http://127.0.0.1:$ALPINE_PORT"
+    (cd "$BASE_DIR/alpine.docs" && mkdocs serve -a 127.0.0.1:$ALPINE_PORT) &
+  else
+    echo "[alpine] skipped (dir missing)"
+  fi
+}
+
+run_astro() {
+  if [ -d "$BASE_DIR/astro.docs" ]; then
+    echo "[astro] -> http://127.0.0.1:$ASTRO_PORT"
+    (cd "$BASE_DIR/astro.docs" && pnpm dev --port "$ASTRO_PORT" --host 127.0.0.1) &
+  else
+    echo "[astro] skipped (dir missing)"
+  fi
+}
+
+# -------- Runner logic --------
+run_selected() {
+  IFS=',' read -ra SERVICES <<< "$ONLY"
+  for svc in "${SERVICES[@]}"; do
+    case "$svc" in
+      php) run_php ;;
+      python) run_python ;;
+      fastapi) run_fastapi ;;
+      alpine) run_alpine ;;
+      astro) run_astro ;;
+      *) echo "Unknown service: $svc" ;;
+    esac
+  done
+}
+
+run_all() {
+  run_php
+  run_python
+  run_fastapi
+  run_alpine
+  run_astro
+}
+
+# -------- Execution --------
+if $RUN_ALL; then
+  run_all
+elif [ -n "$ONLY" ]; then
+  run_selected
+else
+  echo "Usage:"
+  echo "  ./ood --all"
+  echo "  ./ood --only php,astro"
+  echo "  ./ood --only fastapi --port fastapi=9000"
+  echo "  ./ood stop"
+  exit 1
+fi
+
+# Keep script alive
+wait
