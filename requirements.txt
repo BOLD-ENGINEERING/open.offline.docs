@@ -3,6 +3,7 @@ mkdocs
 mkdocs-material
 mkdocs-material[imaging]
 markdown-include-variants
+mkdocs-material-extensions
 
 # Plugins used in FastAPI docs
 mkdocstrings[python]
