@@ -77,9 +77,19 @@ done
 
 stop_all() {
   echo "Stopping all docs servers..."
-  pkill -f "python" 2>/dev/null || true
-  pkill -f "mkdocs" 2>/dev/null || true
-  pkill -f "pnpm dev" 2>/dev/null || true
+
+  for port in $PHP_PORT $PYTHON_PORT $FASTAPI_PORT $ALPINE_PORT $ASTRO_PORT; do
+    pid=$(lsof -ti ":$port" 2>/dev/null || true)
+    if [ -n "$pid" ]; then
+      kill "$pid" 2>/dev/null || true
+      echo "  [stop] Killed process on port $port (PID: $pid)"
+    fi
+  done
+
+  pkill -f "mkdocs serve.*$FASTAPI_PORT" 2>/dev/null || true
+  pkill -f "mkdocs serve.*$ALPINE_PORT" 2>/dev/null || true
+  pkill -f "pnpm dev.*$ASTRO_PORT" 2>/dev/null || true
+
   echo "Done."
 }
 
