@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidelines for agentic coding assistants working in the open.docs repository.
+This file provides guidelines for agentic coding assistants working in the open.offline.docs repository.
 
 ## Repository Structure
 
@@ -17,18 +17,21 @@ This is a multi-framework documentation repository containing:
 
 ```bash
 # Run all documentation servers (uses shared root .venv for Python services)
-./ood --all
+bash ood --all
 
 # Run specific services
-./ood --only fastapi,alpine  # Python services
-./ood --only astro           # Astro service
-./ood --only php,python      # Static docs
+bash ood --only fastapi,alpine  # Python services
+bash ood --only astro           # Astro service
+bash ood --only php,python      # Static docs
 
 # Stop all servers
-./ood stop
+bash ood stop
+
+# Clean up environment (removes .venv, node_modules, cache, build artifacts)
+bash ood clean
 
 # Customize ports
-./ood --only fastapi --port fastapi=9000
+bash ood --only fastapi --port fastapi=9000
 ```
 
 ### Astro Docs (astro.docs/)
@@ -152,5 +155,5 @@ No automated test suite. Use manual testing via `pnpm dev` and build verificatio
 - Use `pnpm run format` to ensure code style consistency
 - The repo uses pnpm in astro.docs, pip for Python projects
 - No automated testing for astro.docs - verify manually in dev server
-- Python MkDocs sites (fastapi, alpine) share root `.venv/` managed by `./ood` script
-- Use `./ood --all` to run all doc servers with proper Python environment setup
+- Python MkDocs sites (fastapi, alpine) share root `.venv/` managed by `bash ood` script
+- Use `bash ood --all` to run all doc servers with proper Python environment setup

@@ -37,6 +37,7 @@ bash ood --all
 This will:
 - Create a shared Python virtual environment in `.venv/`
 - Install all required Python packages from `requirements.txt`
+- Install Astro dependencies via `pnpm install` if `node_modules` doesn't exist
 - Start all documentation servers on their respective ports:
   - FastAPI: http://127.0.0.1:8000
   - Alpine.js: http://127.0.0.1:8004
@@ -64,6 +65,24 @@ bash ood --only fastapi --port fastapi=9000
 ```bash
 bash ood stop
 ```
+
+### Clean Environment
+
+Remove all generated directories, caches, and dependencies:
+
+```bash
+bash ood clean
+```
+
+This removes:
+- `.venv/` - Python virtual environment
+- `astro.docs/node_modules/` - Node.js dependencies
+- `fastapi.docs/.cache/` - MkDocs cache
+- `alpine.docs/.cache/` - MkDocs cache
+- `astro.docs/.astro/` - Astro build directory
+- `astro.docs/dist/` - Astro output directory
+
+After running clean, simply run `bash ood --all` again to reinstall everything from scratch.
 
 ### Manual Setup
 

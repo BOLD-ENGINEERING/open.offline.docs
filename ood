@@ -6,6 +6,10 @@ BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 VENV_DIR="$BASE_DIR/.venv"
 REQUIREMENTS="$BASE_DIR/requirements.txt"
+ASTRO_DIR="$BASE_DIR/astro.docs"
+ASTRO_NODE_MODULES="$ASTRO_DIR/node_modules"
+FASTAPI_CACHE="$BASE_DIR/fastapi.docs/.cache"
+ALPINE_CACHE="$BASE_DIR/alpine.docs/.cache"
 
 PHP_PORT=8002
 PYTHON_PORT=8001
@@ -38,12 +42,78 @@ setup_python_env() {
   fi
 }
 
+setup_astro_env() {
+  if [ ! -d "$ASTRO_DIR" ]; then
+    echo "[setup] Astro docs directory not found, skipping Astro setup"
+    return
+  fi
+
+  if [ ! -d "$ASTRO_NODE_MODULES" ]; then
+    echo "[setup] Installing Astro dependencies..."
+    cd "$ASTRO_DIR"
+    pnpm install
+    cd "$BASE_DIR"
+    echo "[setup] Astro dependencies installed"
+  else
+    echo "[setup] Astro dependencies already installed"
+  fi
+}
+
+clean_all() {
+  echo "[clean] Cleaning up environment..."
+
+  stop_all
+
+  if [ -d "$VENV_DIR" ]; then
+    echo "[clean] Removing Python virtual environment..."
+    rm -rf "$VENV_DIR"
+    echo "[clean] Removed $VENV_DIR"
+  fi
+
+  if [ -d "$ASTRO_NODE_MODULES" ]; then
+    echo "[clean] Removing Astro node_modules..."
+    rm -rf "$ASTRO_NODE_MODULES"
+    echo "[clean] Removed $ASTRO_NODE_MODULES"
+  fi
+
+  if [ -d "$FASTAPI_CACHE" ]; then
+    echo "[clean] Removing FastAPI cache..."
+    rm -rf "$FASTAPI_CACHE"
+    echo "[clean] Removed $FASTAPI_CACHE"
+  fi
+
+  if [ -d "$ALPINE_CACHE" ]; then
+    echo "[clean] Removing Alpine cache..."
+    rm -rf "$ALPINE_CACHE"
+    echo "[clean] Removed $ALPINE_CACHE"
+  fi
+
+  if [ -d "$ASTRO_DIR/.astro" ]; then
+    echo "[clean] Removing Astro .astro build directory..."
+    rm -rf "$ASTRO_DIR/.astro"
+    echo "[clean] Removed $ASTRO_DIR/.astro"
+  fi
+
+  if [ -d "$ASTRO_DIR/dist" ]; then
+    echo "[clean] Removing Astro dist directory..."
+    rm -rf "$ASTRO_DIR/dist"
+    echo "[clean] Removed $ASTRO_DIR/dist"
+  fi
+
+  echo "[clean] Cleanup complete."
+}
+
 ONLY=""
 RUN_ALL=false
 STOP=false
+CLEAN=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    clean)
+      CLEAN=true
+      shift
+      ;;
     --only)
       ONLY="$2"
       shift 2
@@ -93,26 +163,40 @@ stop_all() {
   echo "Done."
 }
 
+if $CLEAN; then
+  clean_all
+  exit 0
+fi
+
 if $STOP; then
   stop_all
   exit 0
 fi
 
 needs_python_env=false
+needs_astro_env=false
+
 if $RUN_ALL; then
   needs_python_env=true
+  needs_astro_env=true
 elif [ -n "$ONLY" ]; then
   IFS=',' read -ra SERVICES <<< "$ONLY"
   for svc in "${SERVICES[@]}"; do
     if [[ "$svc" == "fastapi" ]] || [[ "$svc" == "alpine" ]]; then
       needs_python_env=true
-      break
+    fi
+    if [[ "$svc" == "astro" ]]; then
+      needs_astro_env=true
     fi
   done
 fi
 
 if $needs_python_env; then
   setup_python_env
+fi
+
+if $needs_astro_env; then
+  setup_astro_env
 fi
 
 run_php() {
@@ -192,6 +276,7 @@ else
   echo "  bash ood --only php,astro"
   echo "  bash ood --only fastapi --port fastapi=9000"
   echo "  bash ood stop"
+  echo "  bash ood clean"
   exit 1
 fi
 
