@@ -21,6 +21,7 @@ ONLY=""
 STOP=false
 CLEAN=false
 STREAM=false
+KILL_BIN_PROCESS=false
 RUN_ALL=false
 
 while [[ $# -gt 0 ]]; do
@@ -39,6 +40,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --stream)
       STREAM=true
+      shift
+      ;;
+    --killbin)
+      KILL_BIN_PROCESS=true
       shift
       ;;
     --port)
@@ -164,6 +169,14 @@ stop_all() {
   pkill -f "mkdocs serve.*$FASTAPI_PORT" 2>/dev/null || true
   pkill -f "mkdocs serve.*$ALPINE_PORT" 2>/dev/null || true
   pkill -f "pnpm dev.*$ASTRO_PORT" 2>/dev/null || true
+
+  if $KILL_BIN_PROCESS; then
+    echo "Killing all background processes..."
+    pkill -9 python
+    pkill -9 pnpm
+    pkill -9 node
+    echo "Killed all background processes"
+  fi
 
   echo "Done."
 }
@@ -293,16 +306,17 @@ elif [ -n "$ONLY" ]; then
 else
   echo
   echo "Usage:"
+  echo "  bash ood clean"
+  echo "  bash ood stop --killbin"
   echo "  bash ood --all --stream"
   echo "  bash ood --only php,astro --stream"
   echo "  bash ood --only fastapi --port fastapi=9000 --stream"
-  echo "  bash ood stop"
-  echo "  bash ood clean"
   echo
   echo "Options:"
   echo "  --all: starts all documentation services"
   echo "  --only: starts specified documentation services"
   echo "  --port: starts specified documentation service on the given port number"
+  echo "  --killbin: kill all background processes for python, node and pnpm (fatal)"
   echo "  --stream: to stream all logs related to services running, omit if not needed"
   echo
   exit 1
