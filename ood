@@ -172,9 +172,9 @@ stop_all() {
 
   if $KILL_BIN_PROCESS; then
     echo "Killing all background processes..."
-    pkill -9 python
-    pkill -9 pnpm
-    pkill -9 node
+    pkill -f python 2>/dev/null || true
+    pkill -f pnpm 2>/dev/null || true
+    pkill -f node 2>/dev/null || true
     echo "Killed all background processes"
   fi
 
