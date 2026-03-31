@@ -171,7 +171,12 @@ stop_all() {
 run_php() {
   if [ -d "$BASE_DIR/php.docs" ]; then
     echo "[php] -> http://127.0.0.1:$PHP_PORT"
-    (cd "$BASE_DIR/php.docs" && python -m http.server "$PHP_PORT") &
+
+    if $STREAM; then
+        (cd "$BASE_DIR/php.docs" && python -m http.server "$PHP_PORT") &
+    else
+        (cd "$BASE_DIR/php.docs" && python -m http.server "$PHP_PORT"  2>/dev/null || true) &
+    fi
   else
     echo "[php] skipped (dir missing)"
   fi
@@ -189,12 +194,11 @@ run_python() {
 run_fastapi() {
   if [ -d "$BASE_DIR/fastapi.docs" ]; then
     echo "[fastapi] -> http://127.0.0.1:$FASTAPI_PORT"
-    (cd "$BASE_DIR/fastapi.docs" && source "$VENV_DIR/bin/activate") &
 
     if $STREAM; then
-       mkdocs serve -a 127.0.0.1:$FASTAPI_PORT
+       (cd "$BASE_DIR/fastapi.docs" && source "$VENV_DIR/bin/activate" && mkdocs serve -a 127.0.0.1:$FASTAPI_PORT) &
     else
-        mkdocs serve -a 127.0.0.1:$FASTAPI_PORT 2>/dev/null || true
+        (cd "$BASE_DIR/fastapi.docs" && source "$VENV_DIR/bin/activate" && mkdocs serve -a 127.0.0.1:$FASTAPI_PORT 2>/dev/null || true) &
     fi
   else
     echo "[fastapi] skipped (dir missing)"
