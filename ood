@@ -226,7 +226,12 @@ run_fastapi() {
 run_alpine() {
   if [ -d "$BASE_DIR/alpine.docs" ]; then
     echo "[alpine] -> http://127.0.0.1:$ALPINE_PORT"
-    (cd "$BASE_DIR/alpine.docs" && source "$VENV_DIR/bin/activate" && mkdocs serve -a 127.0.0.1:$ALPINE_PORT) &
+
+    if $STREAM; then
+        (cd "$BASE_DIR/alpine.docs" && source "$VENV_DIR/bin/activate" && mkdocs serve -a 127.0.0.1:$ALPINE_PORT) &
+    else
+        (cd "$BASE_DIR/alpine.docs" && source "$VENV_DIR/bin/activate" && mkdocs serve -a 127.0.0.1:$ALPINE_PORT 2>/dev/null || true) &
+    fi
   else
     echo "[alpine] skipped (dir missing)"
   fi
@@ -235,7 +240,12 @@ run_alpine() {
 run_astro() {
   if [ -d "$BASE_DIR/astro.docs" ]; then
     echo "[astro] -> http://127.0.0.1:$ASTRO_PORT"
-    (cd "$BASE_DIR/astro.docs" && pnpm dev --port "$ASTRO_PORT" --host 127.0.0.1) &
+
+    if $STREAM; then
+        (cd "$BASE_DIR/astro.docs" && pnpm dev --port "$ASTRO_PORT" --host 127.0.0.1) &
+    else
+        (cd "$BASE_DIR/astro.docs" && pnpm dev --port "$ASTRO_PORT" --host 127.0.0.1 2>/dev/null || true) &
+    fi
   else
     echo "[astro] skipped (dir missing)"
   fi
