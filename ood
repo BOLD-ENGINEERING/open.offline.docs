@@ -175,7 +175,7 @@ run_php() {
     if $STREAM; then
         (cd "$BASE_DIR/php.docs" && python -m http.server "$PHP_PORT") &
     else
-        (cd "$BASE_DIR/php.docs" && python -m http.server "$PHP_PORT"  2>/dev/null || true) &
+        (cd "$BASE_DIR/php.docs" && python -m http.server "$PHP_PORT" 2>/dev/null || true) &
     fi
   else
     echo "[php] skipped (dir missing)"
@@ -185,7 +185,12 @@ run_php() {
 run_python() {
   if [ -d "$BASE_DIR/python.docs" ]; then
     echo "[python] -> http://127.0.0.1:$PYTHON_PORT"
-    (cd "$BASE_DIR/python.docs" && python -m http.server "$PYTHON_PORT") &
+
+    if $STREAM; then
+        (cd "$BASE_DIR/python.docs" && python -m http.server "$PYTHON_PORT") &
+    else
+        (cd "$BASE_DIR/python.docs" && python -m http.server "$PYTHON_PORT" 2>/dev/null || true) &
+    fi
   else
     echo "[python] skipped (dir missing)"
   fi
