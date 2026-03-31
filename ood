@@ -12,10 +12,57 @@ FASTAPI_CACHE="$BASE_DIR/fastapi.docs/.cache"
 ALPINE_CACHE="$BASE_DIR/alpine.docs/.cache"
 
 PHP_PORT=8002
-PYTHON_PORT=8001
-FASTAPI_PORT=8000
-ALPINE_PORT=8004
 ASTRO_PORT=8003
+PYTHON_PORT=8001
+ALPINE_PORT=8004
+FASTAPI_PORT=8000
+
+ONLY=""
+STOP=false
+CLEAN=false
+STREAM=false
+RUN_ALL=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    clean)
+      CLEAN=true
+      shift
+      ;;
+    --only)
+      ONLY="$2"
+      shift 2
+      ;;
+    --all)
+      RUN_ALL=true
+      shift
+      ;;
+    --stream)
+      STREAM=true
+      shift
+      ;;
+    --port)
+      IFS='=' read -r name port <<< "$2"
+      case "$name" in
+        php) PHP_PORT=$port ;;
+        python) PYTHON_PORT=$port ;;
+        fastapi) FASTAPI_PORT=$port ;;
+        alpine) ALPINE_PORT=$port ;;
+        astro) ASTRO_PORT=$port ;;
+        *) echo "Unknown service for --port: $name"; exit 1 ;;
+      esac
+      shift 2
+      ;;
+    stop)
+      STOP=true
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+done
 
 setup_python_env() {
   if [ ! -d "$VENV_DIR" ]; then
@@ -35,7 +82,7 @@ setup_python_env() {
 
   if [ -f "$REQUIREMENTS" ]; then
     echo "[setup] Installing/updating Python packages..."
-    pip install -q -r "$REQUIREMENTS"
+    pip install -q -r "$REQUIREMENTS" 2>/dev/null || true
     echo "[setup] Python packages installed"
   else
     echo "[setup] No requirements.txt found"
@@ -51,7 +98,7 @@ setup_astro_env() {
   if [ ! -d "$ASTRO_NODE_MODULES" ]; then
     echo "[setup] Installing Astro dependencies..."
     cd "$ASTRO_DIR"
-    pnpm install
+    pnpm install 2>/dev/null || true
     cd "$BASE_DIR"
     echo "[setup] Astro dependencies installed"
   else
@@ -103,48 +150,6 @@ clean_all() {
   echo "[clean] Cleanup complete."
 }
 
-ONLY=""
-RUN_ALL=false
-STOP=false
-CLEAN=false
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    clean)
-      CLEAN=true
-      shift
-      ;;
-    --only)
-      ONLY="$2"
-      shift 2
-      ;;
-    --all)
-      RUN_ALL=true
-      shift
-      ;;
-    --port)
-      IFS='=' read -r name port <<< "$2"
-      case "$name" in
-        php) PHP_PORT=$port ;;
-        python) PYTHON_PORT=$port ;;
-        fastapi) FASTAPI_PORT=$port ;;
-        alpine) ALPINE_PORT=$port ;;
-        astro) ASTRO_PORT=$port ;;
-        *) echo "Unknown service for --port: $name"; exit 1 ;;
-      esac
-      shift 2
-      ;;
-    stop)
-      STOP=true
-      shift
-      ;;
-    *)
-      echo "Unknown argument: $1"
-      exit 1
-      ;;
-  esac
-done
-
 stop_all() {
   echo "Stopping all docs servers..."
 
@@ -162,42 +167,6 @@ stop_all() {
 
   echo "Done."
 }
-
-if $CLEAN; then
-  clean_all
-  exit 0
-fi
-
-if $STOP; then
-  stop_all
-  exit 0
-fi
-
-needs_python_env=false
-needs_astro_env=false
-
-if $RUN_ALL; then
-  needs_python_env=true
-  needs_astro_env=true
-elif [ -n "$ONLY" ]; then
-  IFS=',' read -ra SERVICES <<< "$ONLY"
-  for svc in "${SERVICES[@]}"; do
-    if [[ "$svc" == "fastapi" ]] || [[ "$svc" == "alpine" ]]; then
-      needs_python_env=true
-    fi
-    if [[ "$svc" == "astro" ]]; then
-      needs_astro_env=true
-    fi
-  done
-fi
-
-if $needs_python_env; then
-  setup_python_env
-fi
-
-if $needs_astro_env; then
-  setup_astro_env
-fi
 
 run_php() {
   if [ -d "$BASE_DIR/php.docs" ]; then
@@ -220,7 +189,13 @@ run_python() {
 run_fastapi() {
   if [ -d "$BASE_DIR/fastapi.docs" ]; then
     echo "[fastapi] -> http://127.0.0.1:$FASTAPI_PORT"
-    (cd "$BASE_DIR/fastapi.docs" && source "$VENV_DIR/bin/activate" && mkdocs serve -a 127.0.0.1:$FASTAPI_PORT) &
+    (cd "$BASE_DIR/fastapi.docs" && source "$VENV_DIR/bin/activate") &
+
+    if $STREAM; then
+       mkdocs serve -a 127.0.0.1:$FASTAPI_PORT
+    else
+        mkdocs serve -a 127.0.0.1:$FASTAPI_PORT 2>/dev/null || true
+    fi
   else
     echo "[fastapi] skipped (dir missing)"
   fi
@@ -266,17 +241,61 @@ run_all() {
   run_astro
 }
 
+if $CLEAN; then
+  clean_all
+  exit 0
+fi
+
+if $STOP; then
+  stop_all
+  exit 0
+fi
+
+needs_python_env=false
+needs_astro_env=false
+
+if $RUN_ALL; then
+  needs_python_env=true
+  needs_astro_env=true
+elif [ -n "$ONLY" ]; then
+  IFS=',' read -ra SERVICES <<< "$ONLY"
+  for svc in "${SERVICES[@]}"; do
+    if [[ "$svc" == "fastapi" ]] || [[ "$svc" == "alpine" ]]; then
+      needs_python_env=true
+    fi
+    if [[ "$svc" == "astro" ]]; then
+      needs_astro_env=true
+    fi
+  done
+fi
+
+if $needs_python_env; then
+  setup_python_env
+fi
+
+if $needs_astro_env; then
+  setup_astro_env
+fi
+
 if $RUN_ALL; then
   run_all
 elif [ -n "$ONLY" ]; then
   run_selected
 else
+  echo
   echo "Usage:"
-  echo "  bash ood --all"
-  echo "  bash ood --only php,astro"
-  echo "  bash ood --only fastapi --port fastapi=9000"
+  echo "  bash ood --all --stream"
+  echo "  bash ood --only php,astro --stream"
+  echo "  bash ood --only fastapi --port fastapi=9000 --stream"
   echo "  bash ood stop"
   echo "  bash ood clean"
+  echo
+  echo "Options:"
+  echo "  --all: starts all documentation services"
+  echo "  --only: starts specified documentation services"
+  echo "  --port: starts specified documentation service on the given port number"
+  echo "  --stream: to stream all logs related to services running, omit if not needed"
+  echo
   exit 1
 fi
 
