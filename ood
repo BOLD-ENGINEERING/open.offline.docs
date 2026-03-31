@@ -18,16 +18,26 @@ ALPINE_PORT=8004
 FASTAPI_PORT=8000
 
 ONLY=""
+LIST=false
+HELP=false
 STOP=false
 CLEAN=false
 STREAM=false
-KILL_BIN_PROCESS=false
 RUN_ALL=false
+KILL_BIN_PROCESS=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     clean)
       CLEAN=true
+      shift
+      ;;
+    list)
+      LIST=true
+      shift
+      ;;
+    help)
+      HELP=true
       shift
       ;;
     --only)
@@ -268,9 +278,45 @@ run_selected() {
 run_all() {
   run_php
   run_python
-  run_fastapi
   run_alpine
+  run_fastapi
   run_astro
+}
+
+run_list() {
+    echo
+    echo "Available Documentations:"
+    echo "  PHP - Complete PHP language documentation"
+    echo "  Python - Full Python programming language documentation"
+    echo "  Astro - Modern web framework for content-focused websites"
+    echo "  FastAPI - Modern, fast web framework for building APIs with Python 3.7+"
+    echo "  Alpine.js - Rugged, minimal framework for composing JavaScript behavior in markup"
+}
+
+run_help() {
+    echo
+    echo "Usage:"
+    echo "  bash ood list"
+    echo "  bash ood help"
+    echo "  bash ood clean"
+    echo "  bash ood stop --killbin"
+    echo "  bash ood --all --stream"
+    echo "  bash ood --only php,astro --stream"
+    echo "  bash ood --only fastapi --port fastapi=9000 --stream"
+    echo
+    echo "Options:"
+    echo "  --all: starts all documentation services"
+    echo "  --only: starts specified documentation services"
+    echo "  --port: starts specified documentation service on the given port number"
+    echo "  --killbin: kill all background processes for python, node and pnpm (fatal)"
+    echo "  --stream: to stream all logs related to services running, omit if not needed"
+    echo
+}
+
+run_notice() {
+    echo
+    echo "Notice: unknown command, run 'bash ood help' for commands and options."
+    echo
 }
 
 if $CLEAN; then
@@ -280,6 +326,16 @@ fi
 
 if $STOP; then
   stop_all
+  exit 0
+fi
+
+if $LIST; then
+  run_list
+  exit 0
+fi
+
+if $HELP; then
+  run_help
   exit 0
 fi
 
@@ -314,21 +370,7 @@ if $RUN_ALL; then
 elif [ -n "$ONLY" ]; then
   run_selected
 else
-  echo
-  echo "Usage:"
-  echo "  bash ood clean"
-  echo "  bash ood stop --killbin"
-  echo "  bash ood --all --stream"
-  echo "  bash ood --only php,astro --stream"
-  echo "  bash ood --only fastapi --port fastapi=9000 --stream"
-  echo
-  echo "Options:"
-  echo "  --all: starts all documentation services"
-  echo "  --only: starts specified documentation services"
-  echo "  --port: starts specified documentation service on the given port number"
-  echo "  --killbin: kill all background processes for python, node and pnpm (fatal)"
-  echo "  --stream: to stream all logs related to services running, omit if not needed"
-  echo
+  run_notice
   exit 1
 fi
 
