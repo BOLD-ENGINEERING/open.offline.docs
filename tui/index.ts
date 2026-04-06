@@ -17,7 +17,32 @@ function loadEnvBaseDir(): string {
   return resolve(__dirname, "..")
 }
 
+const ASCII_ART = [
+  " _______/\\\\\\____________/\\\\\\_______/\\\\\\\\\\\\\\\\____          ",
+  "  _____/\\\\\\///\\\\\\________/\\\\\\///\\\\\\____\\/\\\\\\////////\\\\\\__         ",
+  "   ___/\\\\\\/__\\///\\\\\\____/\\\\\\/__\\///\\\\\\__\\/\\\\\\______\\//\\\\\\_        ",
+  "    __/\\\\\\______\\//\\\\__/\\\\\\______\\//\\\\\\_\\/\\\\\\_______\\/\\\\\\_       ",
+  "     _\\/\\\\\\_______\\/\\\\\\_\\/\\\\\\_______\\/\\\\\\_\\/\\\\\\_______\\/\\\\\\_      ",
+  "      _\\//\\\\\\______/\\\\\\__\\//\\\\\\______/\\\\\\__\\/\\\\\\_______\\/\\\\\\_     ",
+  "       __\\///\\\\\\__/\\\\\\_____\\///\\\\\\__/\\\\\\____\\/\\\\\\_______/\\\\\\__    ",
+  "        ____\\///\\\\\\\\\\/_________\\///\\\\\\\\\\/_____\\/\\\\\\\\\\\\\\\\\\\\/___   ",
+  "         ______\\/////____________\\/////_______\\////////////_____  ",
+]
+
+function loadAsciiArt(): string[] {
+  const artPath = resolve(__dirname, "..", "ascii-text-art.txt")
+  if (existsSync(artPath)) {
+    const content = readFileSync(artPath, "utf-8")
+    return content
+      .split("\n")
+      .map((line) => line.replace(/\{\}/g, "").replace(/^\s+|\s+$/g, ""))
+      .filter((line) => line.length > 0)
+  }
+  return ASCII_ART
+}
+
 const BASE_DIR = loadEnvBaseDir()
+const TITLE_ART = loadAsciiArt()
 
 interface MenuItem {
   key: string
@@ -35,7 +60,6 @@ let selectedIndex = 0
 let outputLines: string[] = ["", "  Select a command and press Enter to execute"]
 let isRunning = false
 let mode = "NORMAL"
-let statusMsg = ""
 
 function runCommand(cmd: string): string {
   try {
@@ -92,7 +116,6 @@ function render() {
 
   // Header
   const header = [
-    Text({ content: " O O D ", fg: "#000000", bg: "#00DFFF" }),
     Text({ content: "  Open Offline Docs — Manager", fg: "#AAAAAA" }),
     Text({ content: "─".repeat(width - 4), fg: "#333333" }),
   ]
@@ -130,21 +153,32 @@ function render() {
     )
   }
 
-  // Right panel: output
+  // Right panel: output or ascii art welcome
   const rightPanel: any[] = [
     Text({ content: "  OUTPUT", fg: "#00DFFF" }),
     Text({ content: "─".repeat(Math.max(10, width - leftWidth - 10)), fg: "#333333" }),
   ]
 
-  const visibleLines = outputLines.slice(-(height - 8))
-  for (const line of visibleLines) {
-    const isStatus = line.includes("Running:")
-    rightPanel.push(
-      Text({
-        content: line,
-        fg: isStatus ? "#FFFF00" : "#DDDDDD",
-      }),
-    )
+  const isDefault = outputLines.length === 2 && outputLines[1].includes("Select a command")
+
+  if (isDefault) {
+    const artOffset = Math.max(0, Math.floor((width - leftWidth - 66) / 2))
+    for (const line of TITLE_ART) {
+      rightPanel.push(Text({ content: " ".repeat(artOffset) + line, fg: "#00DFFF" }))
+    }
+    rightPanel.push(Text({ content: "" }))
+    rightPanel.push(Text({ content: "  Select a command and press Enter", fg: "#555555" }))
+  } else {
+    const visibleLines = outputLines.slice(-(height - 8))
+    for (const line of visibleLines) {
+      const isStatus = line.includes("Running:")
+      rightPanel.push(
+        Text({
+          content: line,
+          fg: isStatus ? "#FFFF00" : "#DDDDDD",
+        }),
+      )
+    }
   }
 
   // Status bar
@@ -180,7 +214,7 @@ function render() {
             {
               flexDirection: "column",
               width: leftWidth,
-              paddingY: 1,
+              paddingY: 0,
               borderStyle: "single",
               borderColor: "#333333",
             },
@@ -190,7 +224,7 @@ function render() {
             {
               flexDirection: "column",
               flexGrow: 1,
-              paddingY: 1,
+              paddingY: 0,
               paddingLeft: 1,
               borderStyle: "single",
               borderColor: "#333333",
