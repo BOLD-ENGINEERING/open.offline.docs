@@ -1,0 +1,29 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ood-api
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../manager:/var/www/manager:ro
+      - ../docs:/var/www/docs:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - OOD_DOCS_PATH=/var/www/docs
+    networks:
+      - ood-network
+    restart: unless-stopped
+
+  doc-base:
+    build:
+      context: .
+      dockerfile: Dockerfile.doc
+    image: ood-doc-base:latest
+    volumes:
+      - ../docs:/var/www/docs:ro
+
+networks:
+  ood-network:
+    driver: bridge

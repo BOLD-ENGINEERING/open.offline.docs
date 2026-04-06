@@ -1,0 +1,37 @@
+# Open Offline Docs - Doc Container Base Image
+# This image includes all dependencies needed to run mkdocs/astro/jekyll docs
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20.x
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install npm (comes with Node.js but ensure latest)
+RUN npm install -g npm@latest
+
+# Install Ruby and Bundler
+RUN apt-get update && apt-get install -y \
+    ruby \
+    ruby-bundler \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python packages
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Create working directory
+WORKDIR /app
+
+# Default command using entrypoint
+CMD ["/entrypoint.sh"]

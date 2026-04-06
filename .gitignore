@@ -1,2 +1,5 @@
 .venv
 .cache
+agent-prompt.md
+.env
+COMMIT.md

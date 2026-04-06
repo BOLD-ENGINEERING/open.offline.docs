@@ -1,0 +1,34 @@
+# Open Offline Docs - API Service Dockerfile
+FROM php:8.2-cli
+
+# Install Python, Node.js, Ruby for doc containers
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    nodejs \
+    npm \
+    ruby \
+    ruby-bundler \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir docker>=7.0.0
+
+# Install PHP dependencies
+COPY api/composer.json /var/www/api/composer.json
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Copy API source
+COPY api /var/www/api
+
+# Set working directory
+WORKDIR /var/www/api
+
+# Expose API port
+EXPOSE 8080
+
+# Start PHP built-in server
+CMD ["php", "-S", "0.0.0.0:8080", "-t", "public"]

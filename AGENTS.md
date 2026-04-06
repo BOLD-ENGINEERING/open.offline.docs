@@ -1,174 +1,123 @@
 # AGENTS.md
 
-This file provides guidelines for agentic coding assistants working in the open.offline.docs repository.
+Guidelines for coding assistants working in open.offline.docs.
 
-## Repository Structure
+## What This Is
 
-This is a multi-framework documentation repository containing:
-- `astro.docs/` - Astro/TypeScript documentation site (primary focus)
-- `fastapi.docs/` - MkDocs/Python documentation site
-- `alpine.docs/` - MkDocs/JavaScript documentation site
-- `python.docs/` - Generated Sphinx/Python docs (read-only)
-- `php.docs/` - Generated PHP docs (read-only)
+A Docker-based offline documentation system. The `ood` bash script is the single entrypoint for all operations. The TUI is a standalone terminal interface that wraps `ood` commands via `execSync`.
 
-## Build Commands
+## Commands
 
-### All Docs Servers (Recommended)
+**Always use `bash ood <command>` — never guess Docker commands directly.**
 
-```bash
-# Run all documentation servers (uses shared root .venv for Python services)
-bash ood --all
-
-# Run specific services
-bash ood --only fastapi,alpine  # Python services
-bash ood --only astro           # Astro service
-bash ood --only php,python      # Static docs
-
-# Stop all servers
-bash ood stop
-
-# Clean up environment (removes .venv, node_modules, cache, build artifacts)
-bash ood clean
-
-# Customize ports
-bash ood --only fastapi --port fastapi=9000
+```
+bash ood build        # Build Docker images (doc-base + api)
+bash ood up           # Start all services via docker compose
+bash ood down         # Stop all services
+bash ood status       # Show container status
+bash ood clean        # Stop + prune containers
+bash ood doctor       # Check dependencies (Docker, Bun, curl, Python3)
+bash ood list         # List available docs
+bash ood tui          # Start Terminal UI (standalone, no API needed)
+bash ood --port=api=9000 up   # Custom port
 ```
 
-### Astro Docs (astro.docs/)
+## Architecture
 
-```bash
-cd astro.docs
-pnpm dev              # Start dev server
-pnpm build            # Production build
-pnpm preview          # Preview production build
-pnpm check            # Astro type checking
-pnpm format           # Format code with Prettier
-pnpm lint:eslint      # Run ESLint
-pnpm lint:linkcheck   # Check all links (builds first)
-pnpm lint:slugcheck   # Verify translation slugs match English
+```
+ood (bash) ──┬── docker compose ── api (PHP Slim 4, port 8080)
+│            │                     └── manager (Python + docker-py, via proc_open)
+│            │
+│            └── doc-base image ── mkdocs / astro / jekyll / static containers
+│
+└── TUI (bun/@opentui/core) ── execSync("bash ood ...")
 ```
 
-### FastAPI/Alpine Docs (Python MkDocs)
+### Component Details
 
-Python services use shared root virtual environment managed by the `ood` script:
-- `.venv/` in root is automatically created and activated by `ood`
-- `requirements.txt` in root contains all MkDocs dependencies
-- For manual testing: `source .venv/bin/activate` then `cd fastapi.docs && mkdocs serve`
+| Component | Path | Stack | Purpose |
+|-----------|------|-------|---------|
+| CLI | `ood` + `scripts/*.sh` | Bash | Single entrypoint, modular scripts |
+| API | `api/` | PHP Slim 4 + PSR-7 | HTTP management interface (port 8080) |
+| Manager | `manager/manager.py` | Python + docker-py | Docker container lifecycle (start/stop/list/status) |
+| TUI | `tui/index.ts` | Bun + @opentui/core v0.1.97 | Standalone terminal menu, calls `bash ood` directly |
+| Docker | `docker/` | Docker compose | Dev + prod compose files, base images |
+| Docs | `docs/` | Read-only | Aggregated documentation (do not edit) |
 
-### Running a Single Test (FastAPI)
+### Request Flow (API path)
 
-```bash
-# Run a specific test file
-cd fastapi.docs
-source ../.venv/bin/activate
-pytest docs_src/app_testing/app_a_py310/test_main.py::test_read_main
-
-# Run a specific test function
-pytest docs_src/app_testing/app_a_py310/test_main.py -k "test_read"
-
-# Run all tests in a directory
-pytest docs_src/app_testing/
+```
+HTTP → api/public/index.php → Application.php → DocsController.php
+  → proc_open("python3 manager/manager.py <cmd>") → Docker API
 ```
 
-## Running Tests
+### Request Flow (TUI path)
 
-### FastAPI Docs
-FastAPI docs tests use pytest with TestClient:
-```bash
-cd fastapi.docs
-source ../.venv/bin/activate  # Activate root venv
-pytest docs_src/app_testing/app_a_py310/test_main.py::test_read_main
+```
+User keypress → tui/index.ts → execSync("bash ood <cmd>") → scripts/*.sh → docker compose
 ```
 
-### Astro Docs
-No automated test suite. Use manual testing via `pnpm dev` and build verification with `pnpm build`.
+## TUI Quirks
 
-## Code Style Guidelines
+- **No build step**: `bun build` will fail — `@opentui/core` imports `bun:ffi` which only works at runtime
+- **Always run with**: `bun run index.ts`
+- **Construct API**: `Box(props, ...children)` and `Text(props)` from `@opentui/core` v0.1.97
+- **Key handling**: `renderer.keyInput.on("keypress", handler)` — KeyEvent has `.name`, `.ctrl`, `.shift`, `.meta`
+- **Re-render pattern**: `renderer.root.remove("app")` then `renderer.root.add(Box({id: "app", ...}, ...children))`
+- **Exit**: `renderer.destroy()` then `process.exit(0)`
+- **Env var**: `OTUI_USE_CONSOLE=false` set by `bash ood tui` in `scripts/functions.sh`
+- **BASE_DIR**: Loaded from `.env` file, falls back to repo root. Copy `.env.example` to `.env` and set your path
 
-### TypeScript/JavaScript (astro.docs/)
+## Doc Container Types
 
-**Imports:**
-- Use bare specifiers for local imports with `~/` alias: `import { foo } from '~/util/bar'`
-- Use `import type` for type-only imports: `import type { CollectionEntry } from 'astro:content'`
-- Third-party imports first, then local imports
-- No unused imports
+| Type | Docs | Server Command | Port |
+|------|------|----------------|------|
+| mkdocs | fastapi, alpine | `mkdocs serve --dev-addr 0.0.0.0:<port>` | 8000, 8002 |
+| astro | astro | `pnpm dev` or `npm run dev` | 8001 |
+| jekyll | slimphp | `bundle exec jekyll serve --host 0.0.0.0 --port <port>` | 8005 |
+| static | php, python | `python3 -m http.server <port>` | 8003, 8004 |
 
-**Formatting:**
-- Use tabs for code indentation (2-width)
-- Use spaces for config files (*.json, *.md, *.toml, *.yml)
-- Max line width: 100 characters
-- Use single quotes
-- Trailing commas in ES5+ style
-- Prettier handles formatting automatically
-- Use `const` for variables, `let` only when reassignment needed
+Container naming: `ood-doc-<name>` (docs), `ood-api` (API)
+All containers share `ood-network` Docker network.
 
-**Types:**
-- TypeScript strict mode enabled
-- Type parameters prefix with generics: `<T, U>`
-- Use interfaces for object shapes that can be extended
-- Use type aliases for unions, primitives, and tuples
-- Export types when used across modules
-- Use `as const` for literal type narrowing
+## Docker Images
 
-**Naming Conventions:**
-- camelCase for variables, functions, and methods
-- PascalCase for classes, interfaces, types, and enums
-- UPPER_CASE for constants
-- kebab-case for file names
-- Private class members: `private readonly name` with `#` for truly private (optional)
-- Async functions: prefix with descriptive verb, not "async" in name
+- **`ood-api:latest`** — PHP 8.2 + Python 3 + Node.js + Ruby. Built from `docker/Dockerfile` (dev) or `docker/Dockerfile.prod`
+- **`ood-doc-base:latest`** — Python 3.11-slim + Node.js 20 + Ruby + MkDocs + all Python deps. Built from `docker/Dockerfile.doc`
+- API mounts Docker socket (`/var/run/docker.sock`) so the manager can control containers
+- Dev compose mounts `manager/` and `docs/` as read-only volumes; prod bakes them into the image
 
-**Error Handling:**
-- Use try/catch for operations that may throw
-- Return early for error conditions to reduce nesting
-- Validate inputs at function boundaries
-- Use Astro's `AstroError` for expected errors
-- Document error scenarios in JSDoc comments
+## Environment
 
-**Code Organization:**
-- One class/export per file preferred
-- Keep utility functions in src/util/
-- Components in src/components/ organized by domain
-- TypeScript interfaces in same file as implementation or separate types file
-- Use JSDoc comments for public API documentation
+- **`.env`** — Optional. Set `BASE_DIR` to override the project root path. Copy `.env.example` to `.env` to configure.
+- **`.env.example`** — Committed template. `.env` is gitignored.
+- `ood` loads `.env` automatically if it exists (before sourcing scripts).
+- TUI reads `BASE_DIR` from `.env` at runtime, falls back to `../` relative to `tui/index.ts`.
+- Manager uses `OOD_DOCS_PATH` env var, falls back to `../docs` relative to `manager/manager.py`.
 
-**Astro-specific:**
-- Use frontmatter for component props with proper typing
-- Use `Astro.props` and `Astro.slots` correctly
-- Prefer `<slot />` over children props
-- Use `const currentPage = new URL(Astro.request.url)` for URL handling
-- For external styles, link CSS in component with scoped or global as needed
-- Custom elements: register in client-side `<script>` tags
-- Use Starlight components for documentation-specific UI
+## Code Conventions
 
-**CSS:**
-- Scoped styles in component `<style>` blocks where possible
-- Use CSS variables from Starlight theme (prefix `--sl-`)
-- Global styles in dedicated global CSS files
-- Use CSS Grid/Flexbox for layouts
-- Prefer `data-*` attributes for component state hook-up
+**Python (manager/)**: Standard lib → third-party → local. Type hints required. All output via `json_output()`/`json_error()` with proper exit codes.
 
-### Python (fastapi.docs/)
+**PHP (api/)**: Slim 4, PSR-7. Routes in `Application.php`. Controller in `DocsController.php`. Uses `proc_open` to call manager, parses JSON responses.
 
-**Imports:**
-- Standard library first, then third-party, then local
-- Use relative imports for local modules
-- Type imports with `from typing import`
+**TypeScript (tui/)**: Bun runtime only, no build. Use `execSync` for shell commands. Async/await for any API calls.
 
-**Testing:**
-- Use `TestClient` for FastAPI endpoint testing
-- Assert status codes and JSON responses
-- Keep tests simple and focused
-- Test files: `test_main.py` in app directories
+**Bash (scripts/)**: Modular — `vars.sh` (config), `flags.sh` (arg parsing), `docker.sh` (docker ops), `functions.sh` (user-facing commands). All sourced by `ood`.
 
-## Important Notes
+## Known Issues
 
-- The Python and PHP doc directories contain generated documentation - do NOT edit
-- Astro docs has extensive i18n (12 languages) - ensure translation compatibility
-- Maintain slug consistency across translations (use `pnpm lint:slugcheck`)
-- For TypeScript work in astro.docs, always run `pnpm check` and `pnpm lint:eslint` before committing
-- Use `pnpm run format` to ensure code style consistency
-- The repo uses pnpm in astro.docs, pip for Python projects
-- No automated testing for astro.docs - verify manually in dev server
-- Python MkDocs sites (fastapi, alpine) share root `.venv/` managed by `bash ood` script
-- Use `bash ood --all` to run all doc servers with proper Python environment setup
+- `Dockerfile.doc` may appear as binary in some tools — it's valid UTF-8 text
+- No test suite, linter, or typechecker configured
+
+## Port Defaults (scripts/vars.sh)
+
+| Service | Port |
+|---------|------|
+| API | 8080 |
+| FastAPI doc | 8000 |
+| Python doc | 8001 |
+| PHP doc | 8002 |
+| Astro doc | 8003 |
+| Alpine doc | 8004 |
+| SlimPHP doc | 8005 |

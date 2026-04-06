@@ -1,227 +1,131 @@
-# Open Offline Documentation
+# Open Offline Docs
 
-Monolithic repository of forked open-source frameworks and programming language documentation for offline development.
+Monolithic repository of open-source framework and programming language documentation for offline development.
 
 ## Overview
 
-This repository aggregates documentation from various open-source frameworks and programming languages into a single monolithic structure. It's designed for offline development environments where you need quick access to comprehensive documentation without relying on internet connectivity.
+A Docker-based system for running documentation servers offline. Each documentation site runs in its own container, managed by a central API or the standalone Terminal UI.
 
-The documentation covers:
-- **Astro** - Modern web framework for content-focused websites
-- **FastAPI** - Modern, fast web framework for building APIs with Python 3.7+
-- **Alpine.js** - Rugged, minimal framework for composing JavaScript behavior in markup
-- **Python** - Full Python programming language documentation
-- **PHP** - Complete PHP language documentation
+**Docs included:**
+- **FastAPI** — MkDocs (port 8000)
+- **Alpine.js** — MkDocs (port 8002)
+- **Astro** — Node.js (port 8001)
+- **PHP** — Static (port 8003)
+- **Python** — Static (port 8004)
+- **SlimPHP** — Jekyll (port 8005)
 
-## Getting Started
-
-### Prerequisites
-
-- **Node.js** and **pnpm** (for Astro docs)
-- **Python 3.7+** (for MkDocs-based sites)
-- **git**
-
-### Quick Start
-
-The recommended way to run all documentation servers is using the `ood` (Open Offline Docs) script:
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd open.offline.docs
-
-# Run all documentation servers
-bash ood --all
+bash ood doctor    # Check dependencies
+bash ood build     # Build images
+bash ood up        # Start all services
+bash ood tui       # Terminal UI (standalone, no build needed)
 ```
 
-This will:
-- Create a shared Python virtual environment in `.venv/`
-- Install all required Python packages from `requirements.txt`
-- Install Astro dependencies via `pnpm install` if `node_modules` doesn't exist
-- Start all documentation servers on their respective ports:
-  - FastAPI: http://127.0.0.1:8000
-  - Alpine.js: http://127.0.0.1:8004
-  - Astro: http://127.0.0.1:8003
-  - PHP: http://127.0.0.1:8002
-  - Python: http://127.0.0.1:8001
+## Commands
 
-### Individual Services
-
-Run specific documentation sites:
-
-```bash
-# Run only FastAPI and Alpine docs (Python services)
-bash ood --only fastapi,alpine
-
-# Run only Astro docs
-bash ood --only astro
-
-# Run with custom ports
-bash ood --only fastapi --port fastapi=9000
+```
+bash ood doctor              Check system dependencies
+bash ood build               Build Docker images
+bash ood up                  Start all services
+bash ood up --only api       Start only API
+bash ood down                Stop all services
+bash ood status              Show container status
+bash ood clean               Stop + prune containers
+bash ood list                List available docs
+bash ood tui                 Start Terminal UI
+bash ood help                Show help
+bash ood --port=api=9000 up  Custom port
 ```
 
-### Stop All Services
+## Architecture
 
-```bash
-bash ood stop
+```
+ood (bash) ──┬── docker compose ── api (PHP Slim 4, port 8080)
+│            │                     └── manager (Python + docker-py)
+│            │
+│            └── doc-base image ── mkdocs / astro / jekyll / static
+│
+└── TUI (bun/@opentui/core) ── execSync("bash ood ...")
 ```
 
-### Clean Environment
+| Component | Stack | Purpose |
+|-----------|-------|---------|
+| `ood` | Bash | Single CLI entrypoint |
+| `api/` | PHP Slim 4 + PSR-7 | HTTP management API |
+| `manager/` | Python + docker-py | Docker container lifecycle |
+| `tui/` | Bun + @opentui/core | Standalone terminal UI |
+| `docker/` | Docker compose | Dev + prod images |
+| `docs/` | Read-only | Aggregated documentation |
 
-Remove all generated directories, caches, and dependencies:
-
-```bash
-bash ood clean
-```
-
-This removes:
-- `.venv/` - Python virtual environment
-- `astro.docs/node_modules/` - Node.js dependencies
-- `fastapi.docs/.cache/` - MkDocs cache
-- `alpine.docs/.cache/` - MkDocs cache
-- `astro.docs/.astro/` - Astro build directory
-- `astro.docs/dist/` - Astro output directory
-
-After running clean, simply run `bash ood --all` again to reinstall everything from scratch.
-
-### Manual Setup
-
-If you prefer to run services individually:
-
-#### Astro Docs
+## API Endpoints
 
 ```bash
-cd astro.docs
-pnpm install
-pnpm dev  # Starts on port 3000 by default
-```
-
-#### FastAPI/Alpine Docs
-
-```bash
-# From project root
-source .venv/bin/activate
-
-# FastAPI
-cd fastapi.docs
-mkdocs serve
-
-# Alpine.js
-cd ../alpine.docs
-mkdocs serve
+curl http://127.0.0.1:8080/docs                          # List all docs
+curl -X POST http://127.0.0.1:8080/docs/fastapi/start    # Start a doc
+curl -X POST http://127.0.0.1:8080/docs/fastapi/stop     # Stop a doc
+curl http://127.0.0.1:8080/docs/fastapi/status           # Get doc status
 ```
 
 ## Project Structure
 
 ```
 open.offline.docs/
-├── .venv/                    # Shared Python virtual environment (auto-created)
-├── astro.docs/               # Astro framework documentation
-│   ├── src/                  # Source files
-│   └── package.json          # Node.js dependencies
-├── fastapi.docs/             # FastAPI documentation
-│   ├── docs_src/             # Source code examples
-│   └── mkdocs.yml            # MkDocs configuration
-├── alpine.docs/              # Alpine.js documentation
-│   ├── docs/                 # Documentation source
-│   └── mkdocs.yml            # MkDocs configuration
-├── python.docs/              # Python language docs (read-only, generated)
-├── php.docs/                 # PHP language docs (read-only, generated)
-├── requirements.txt          # Python dependencies (shared for MkDocs sites)
-└── ood                       # Unified documentation server script
+├── ood                      # Main CLI entrypoint
+├── scripts/                 # Modular bash scripts
+│   ├── vars.sh              # Configuration and port defaults
+│   ├── flags.sh             # Argument parsing
+│   ├── docker.sh            # Docker operations
+│   └── functions.sh         # User-facing commands
+├── api/                     # PHP Slim 4 API service
+│   ├── public/index.php     # Entry point
+│   ├── src/Application.php  # Route definitions
+│   └── src/DocsController.php  # Request handlers
+├── manager/                 # Python Docker manager
+│   ├── manager.py           # Container lifecycle CLI
+│   └── requirements.txt     # docker-py dependency
+├── tui/                     # Terminal UI
+│   └── index.ts             # Bun + @opentui/core
+├── docker/
+│   ├── Dockerfile           # API image (dev)
+│   ├── Dockerfile.prod      # API image (production)
+│   ├── Dockerfile.doc       # Doc base image (all deps)
+│   ├── docker-compose.yml   # Dev compose (mounts volumes)
+│   ├── docker-compose.prod.yml  # Prod compose (bakes content)
+│   ├── entrypoint.sh        # Doc container startup script
+│   └── requirements.txt     # Python deps for doc containers
+├── docs/                    # Read-only documentation
+│   ├── fastapi.docs/        # MkDocs
+│   ├── alpine.docs/         # MkDocs
+│   ├── astro.docs/          # Astro (has package.json)
+│   ├── php.docs/            # Static
+│   ├── python.docs/         # Static
+│   └── slim.php.docs/       # Jekyll
+├── AGENTS.md                # Guidelines for coding assistants
+└── LICENSE                  # GPL v3
 ```
 
-## Building for Production
+## Prerequisites
 
-### Astro Docs
+- Docker + docker-compose
+- Bun (for TUI)
+
+## Configuration
+
+Copy `.env.example` to `.env` and set your project path:
 
 ```bash
-cd astro.docs
-pnpm build
-pnpm preview
+cp .env.example .env
+# Edit .env and set BASE_DIR to your repo's absolute path
 ```
 
-### MkDocs Sites (FastAPI, Alpine)
-
-```bash
-source .venv/bin/activate
-cd fastapi.docs  # or alpine.docs
-mkdocs build
-```
-
-## Development
-
-### Code Style
-
-For code style guidelines and contributing guidelines, see [AGENTS.md](AGENTS.md).
-
-### Running Tests
-
-```bash
-# FastAPI tests
-cd fastapi.docs
-source ../.venv/bin/activate
-pytest docs_src/app_testing/app_a_py310/test_main.py
-
-# Astro linting
-cd astro.docs
-pnpm lint:eslint
-pnpm check
-```
-
-## AI Training and Crawling Policy
-
-**This repository is intended for offline development and educational purposes only.**
-
-To prevent unauthorized AI training and web crawling:
-
-1. **For AI Companies**: This repository contains documentation from various open-source projects. The original maintainers of these frameworks have their own licensing terms. Please respect those terms and do not use this aggregated content for training AI models without proper authorization.
-
-2. **For Crawlers**: If you're building a search index or crawler, note that:
-   - The documentation in this repository is already indexed by the respective official projects
-   - Crawling this monolithic repository provides no additional value
-   - Respect `robots.txt` files in individual documentation sites
-
-3. **For Researchers**: This repository is for offline access convenience. For research purposes, please:
-   - Cite the original sources/frameworks
-   - Follow the original projects' attribution requirements
-   - Don't create derivative works that misrepresent the original documentation
+The `.env` file is gitignored. `ood`, the TUI, and the manager all read `BASE_DIR` from it with sensible fallbacks.
 
 ## License
 
-This repository aggregates documentation from various open-source projects with their own licenses:
-- **Astro**: MIT License
-- **FastAPI**: MIT License
-- **Alpine.js**: MIT License
-- **Python**: PSF License
-- **PHP**: various licenses
-
-See individual project directories and their LICENSE files for specific license information.
-
-## Contributing
-
-This repository primarily serves as an offline documentation aggregator. For contributions to the actual documentation:
-
-- **Astro**: https://github.com/withastro/astro
-- **FastAPI**: https://github.com/fastapi/fastapi
-- **Alpine.js**: https://github.com/alpinejs/alpine
-- **Python**: https://github.com/python/cpython
-- **PHP**: https://github.com/php/doc-en
-
-For maintainers of this repository, see [AGENTS.md](AGENTS.md) for development guidelines.
-
-## Credits and Attribution
-
-This repository aggregates and hosts documentation from the following open-source projects:
-
-- [Astro](https://astro.build) - The Astro web framework team
-- [FastAPI](https://fastapi.tiangolo.com) - Sebastián Ramírez and contributors
-- [Alpine.js](https://alpinejs.dev) - Caleb Porzio and contributors
-- [Python](https://www.python.org) - Python Software Foundation
-- [PHP](https://www.php.net) - The PHP Group and contributors
-
-All documentation remains property of their respective owners. This repository simply provides a centralized, offline-accessible format for development convenience.
+GPL v3. Aggregated docs retain their original licenses (MIT, PSF, etc.).
 
 ---
 
-**Used by BOLD Engineering** for offline development environments.
+Used by BOLD Engineering for offline development.
