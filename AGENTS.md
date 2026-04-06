@@ -67,6 +67,7 @@ User keypress → tui/index.ts → execSync("bash ood <cmd>") → scripts/*.sh �
 - **Exit**: `renderer.destroy()` then `process.exit(0)`
 - **Env var**: `OTUI_USE_CONSOLE=false` set by `bash ood tui` in `scripts/functions.sh`
 - **BASE_DIR**: Loaded from `.env` file, falls back to repo root. Copy `.env.example` to `.env` and set your path
+- **Layout**: Full-screen two-panel UI — left panel (commands), right panel (output). Vim keys: `j`/`k` navigate, `Enter` execute, `q` quit
 
 ## Doc Container Types
 

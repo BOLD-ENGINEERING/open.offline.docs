@@ -20,6 +20,7 @@ function loadEnvBaseDir(): string {
 const BASE_DIR = loadEnvBaseDir()
 
 interface MenuItem {
+  key: string
   label: string
   description: string
   action: () => Promise<void> | void
@@ -31,86 +32,52 @@ const renderer = await createCliRenderer({
 })
 
 let selectedIndex = 0
-let message = ""
-let messageColor = "#00FF00"
-let messageTimer: ReturnType<typeof setTimeout> | null = null
-let terminalWidth = process.stdout.columns || 80
-let terminalHeight = process.stdout.rows || 24
-
-function showMessage(msg: string, color = "#00FF00") {
-  message = msg
-  messageColor = color
-  if (messageTimer) clearTimeout(messageTimer)
-  messageTimer = setTimeout(() => {
-    message = ""
-    render()
-  }, 4000)
-}
+let outputLines: string[] = ["", "  Select a command and press Enter to execute"]
+let isRunning = false
+let mode = "NORMAL"
+let statusMsg = ""
 
 function runCommand(cmd: string): string {
   try {
-    return execSync(cmd, { cwd: BASE_DIR, encoding: "utf-8", timeout: 30000 })
+    return execSync(cmd, { cwd: BASE_DIR, encoding: "utf-8", timeout: 60000 })
   } catch (e: any) {
     return e.stdout?.toString() || e.message || "Command failed"
   }
 }
 
-async function buildImages() {
-  showMessage("Building Docker images...", "#FFFF00")
-  render()
-  const output = runCommand("bash ood build")
-  showMessage("Build complete", "#00FF00")
-  render()
+function formatOutput(raw: string): string[] {
+  if (!raw) return ["  (no output)"]
+  return raw.split("\n").map((line) => `  ${line}`)
 }
 
-async function startServices() {
-  showMessage("Starting services...", "#FFFF00")
+async function executeAction(item: MenuItem) {
+  if (isRunning) return
+  isRunning = true
+  mode = "RUNNING"
+  outputLines = [`  Running: ${item.label}...`, ""]
   render()
-  const output = runCommand("bash ood up")
-  showMessage("Services started", "#00FF00")
-  render()
-}
 
-async function stopServices() {
-  showMessage("Stopping services...", "#FFFF00")
-  render()
-  const output = runCommand("bash ood down")
-  showMessage("Services stopped", "#00FF00")
-  render()
-}
+  const result = item.action()
+  if (result instanceof Promise) {
+    await result
+  }
 
-async function checkStatus() {
-  showMessage("Checking status...", "#FFFF00")
-  render()
-  const output = runCommand("bash ood status")
-  showMessage("Status retrieved", "#00FF00")
-  render()
-}
-
-async function runDoctor() {
-  showMessage("Running diagnostics...", "#FFFF00")
-  render()
-  const output = runCommand("bash ood doctor")
-  showMessage("Diagnostics complete", "#00FF00")
-  render()
-}
-
-async function cleanUp() {
-  showMessage("Cleaning up...", "#FFFF00")
-  render()
-  const output = runCommand("bash ood clean")
-  showMessage("Cleanup complete", "#00FF00")
+  isRunning = false
+  mode = "NORMAL"
   render()
 }
 
 const menuItems: MenuItem[] = [
-  { label: "Doctor", description: "Check system dependencies", action: runDoctor, section: "System" },
-  { label: "Build", description: "Build Docker images", action: buildImages, section: "System" },
-  { label: "Up", description: "Start all services", action: startServices, section: "Services" },
-  { label: "Down", description: "Stop all services", action: stopServices, section: "Services" },
-  { label: "Status", description: "Show container status", action: checkStatus, section: "Services" },
-  { label: "Clean", description: "Clean up containers and images", action: cleanUp, section: "Services" },
-  { label: "List Docs", description: "List available documentation", action: () => showMessage("See docs below", "#00FF00"), section: "Docs" },
+  { key: "", label: "doctor", description: "Check system dependencies", action: () => { outputLines = formatOutput(runCommand("bash ood doctor")) }, section: "SYSTEM" },
+  { key: "", label: "build", description: "Build Docker images (doc-base + api)", action: () => { outputLines = formatOutput(runCommand("bash ood build")) }, section: "SYSTEM" },
+  { key: "", label: "up", description: "Start all services", action: () => { outputLines = formatOutput(runCommand("bash ood up")) }, section: "SERVICES" },
+  { key: "", label: "up --only api", description: "Start only the API service", action: () => { outputLines = formatOutput(runCommand("bash ood up --only api")) }, section: "SERVICES" },
+  { key: "", label: "down", description: "Stop all services", action: () => { outputLines = formatOutput(runCommand("bash ood down")) }, section: "SERVICES" },
+  { key: "", label: "stop", description: "Stop all containers (alias for down)", action: () => { outputLines = formatOutput(runCommand("bash ood stop")) }, section: "SERVICES" },
+  { key: "", label: "status", description: "Show container status", action: () => { outputLines = formatOutput(runCommand("bash ood status")) }, section: "SERVICES" },
+  { key: "", label: "clean", description: "Stop + prune all containers", action: () => { outputLines = formatOutput(runCommand("bash ood clean")) }, section: "SERVICES" },
+  { key: "", label: "list", description: "List available documentation sites", action: () => { outputLines = formatOutput(runCommand("bash ood list")) }, section: "DOCS" },
+  { key: "", label: "help", description: "Show commands, options, and examples", action: () => { outputLines = formatOutput(runCommand("bash ood help")) }, section: "INFO" },
 ]
 
 let currentSection = ""
@@ -118,89 +85,150 @@ let currentSection = ""
 function render() {
   renderer.root.remove("app")
 
-  const children: any[] = []
+  const width = process.stdout.columns || 80
+  const height = process.stdout.rows || 24
+  const leftWidth = Math.floor(width * 0.35)
+  const statusBar = ` ${mode}  │  j/k: navigate  │  Enter: run  │  q: quit  │  ${menuItems.length} commands`
 
-  // Title bar
-  children.push(
-    Text({
-      content: " Open Offline Docs - Manager ",
-      fg: "#000000",
-      bg: "#00FFFF",
-    }),
-  )
-  children.push(Text({ content: "" }))
+  // Header
+  const header = [
+    Text({ content: " O O D ", fg: "#000000", bg: "#00DFFF" }),
+    Text({ content: "  Open Offline Docs — Manager", fg: "#AAAAAA" }),
+    Text({ content: "─".repeat(width - 4), fg: "#333333" }),
+  ]
 
-  // Menu items
+  // Left panel: menu
+  const leftPanel: any[] = []
+  currentSection = ""
+
   for (let i = 0; i < menuItems.length; i++) {
     const item = menuItems[i]
     const isSelected = i === selectedIndex
 
     if (item.section !== currentSection) {
       currentSection = item.section
-      if (i > 0) children.push(Text({ content: "" }))
-      children.push(Text({ content: ` ${currentSection}`, fg: "#00FFFF" }))
+      if (i > 0) leftPanel.push(Text({ content: "" }))
+      leftPanel.push(Text({ content: `  ${item.section}`, fg: "#00DFFF" }))
     }
 
-    const prefix = isSelected ? " > " : "   "
-    const fg = isSelected ? "#00FFFF" : "#FFFFFF"
-    children.push(
+    const key = isSelected ? "▸" : " "
+    const fg = isSelected ? "#00DFFF" : "#CCCCCC"
+    const bg = isSelected ? "#1A1A2E" : undefined
+    leftPanel.push(
       Text({
-        content: `${prefix}${item.label}`,
+        content: `  ${key}  ${item.label}`,
         fg,
+        bg,
       }),
     )
-    children.push(
+    leftPanel.push(
       Text({
-        content: `    ${item.description}`,
-        fg: "#666666",
+        content: `     ${item.description}`,
+        fg: "#555555",
+        bg,
       }),
     )
   }
 
-  // Message
-  if (message) {
-    children.push(Text({ content: "" }))
-    children.push(Text({ content: `  ${message}`, fg: messageColor }))
+  // Right panel: output
+  const rightPanel: any[] = [
+    Text({ content: "  OUTPUT", fg: "#00DFFF" }),
+    Text({ content: "─".repeat(Math.max(10, width - leftWidth - 10)), fg: "#333333" }),
+  ]
+
+  const visibleLines = outputLines.slice(-(height - 8))
+  for (const line of visibleLines) {
+    const isStatus = line.includes("Running:")
+    rightPanel.push(
+      Text({
+        content: line,
+        fg: isStatus ? "#FFFF00" : "#DDDDDD",
+      }),
+    )
   }
 
-  // Footer
-  children.push(Text({ content: "" }))
-  children.push(Text({ content: " ──────────────────────────────────────", fg: "#333333" }))
-  children.push(Text({ content: " ↑/↓ Navigate  Enter Execute  q Quit", fg: "#888888" }))
+  // Status bar
+  const statusBarText = Text({
+    content: statusBar.padEnd(width - 4),
+    fg: "#000000",
+    bg: "#00DFFF",
+  })
 
   renderer.root.add(
     Box(
       {
         id: "app",
-        borderStyle: "rounded",
-        padding: 1,
         flexDirection: "column",
-        gap: 0,
+        flexGrow: 1,
+        height: "100%",
       },
-      ...children,
+      Box(
+        {
+          flexDirection: "column",
+          flexGrow: 1,
+          paddingX: 1,
+          paddingY: 0,
+        },
+        ...header,
+        Box(
+          {
+            flexDirection: "row",
+            flexGrow: 1,
+            gap: 0,
+          },
+          Box(
+            {
+              flexDirection: "column",
+              width: leftWidth,
+              paddingY: 1,
+              borderStyle: "single",
+              borderColor: "#333333",
+            },
+            ...leftPanel,
+          ),
+          Box(
+            {
+              flexDirection: "column",
+              flexGrow: 1,
+              paddingY: 1,
+              paddingLeft: 1,
+              borderStyle: "single",
+              borderColor: "#333333",
+            },
+            ...rightPanel,
+          ),
+        ),
+        Text({ content: "─".repeat(width - 4), fg: "#333333" }),
+        statusBarText,
+      ),
     ),
   )
 }
 
 renderer.keyInput.on("keypress", (key: any) => {
+  if (isRunning) return
+
   switch (key.name) {
-    case "up":
-      if (selectedIndex > 0) {
-        selectedIndex--
-        render()
-      }
-      break
+    case "j":
     case "down":
       if (selectedIndex < menuItems.length - 1) {
         selectedIndex++
         render()
       }
       break
+    case "k":
+    case "up":
+      if (selectedIndex > 0) {
+        selectedIndex--
+        render()
+      }
+      break
     case "return":
     case "enter":
-      menuItems[selectedIndex].action()
+      executeAction(menuItems[selectedIndex])
       break
     case "q":
+    case "escape":
       renderer.destroy()
       process.exit(0)
       break
