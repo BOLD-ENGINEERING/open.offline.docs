@@ -55,6 +55,21 @@ Python services use shared root virtual environment managed by the `ood` script:
 - `requirements.txt` in root contains all MkDocs dependencies
 - For manual testing: `source .venv/bin/activate` then `cd fastapi.docs && mkdocs serve`
 
+### Running a Single Test (FastAPI)
+
+```bash
+# Run a specific test file
+cd fastapi.docs
+source ../.venv/bin/activate
+pytest docs_src/app_testing/app_a_py310/test_main.py::test_read_main
+
+# Run a specific test function
+pytest docs_src/app_testing/app_a_py310/test_main.py -k "test_read"
+
+# Run all tests in a directory
+pytest docs_src/app_testing/
+```
+
 ## Running Tests
 
 ### FastAPI Docs
