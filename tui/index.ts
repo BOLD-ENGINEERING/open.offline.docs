@@ -30,7 +30,7 @@ const ASCII_ART = [
 ]
 
 function loadAsciiArt(): string[] {
-  const artPath = resolve(__dirname, "..", "ascii-text-art.txt")
+  const artPath = resolve(__dirname, "..", "banner.txt")
   if (existsSync(artPath)) {
     const content = readFileSync(artPath, "utf-8")
     return content

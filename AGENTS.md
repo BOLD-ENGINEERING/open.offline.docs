@@ -2,24 +2,51 @@
 
 Guidelines for coding assistants working in open.offline.docs.
 
-## What This Is
+## Table of Contents
 
-A Docker-based offline documentation system. The `ood` bash script is the single entrypoint for all operations. The TUI is a standalone terminal interface that wraps `ood` commands via `execSync`.
+- [Overview](#overview)
+- [Commands](#commands)
+- [Architecture](#architecture)
+- [Components](#components)
+- [API](#api)
+- [TUI](#tui)
+- [Containers](#containers)
+- [Docker](#docker)
+- [Environment](#environment)
+- [Conventions](#conventions)
+- [Issues](#issues)
+- [Ports](#ports)
+
+## Overview
+
+Docker-based offline documentation system. `ood` is the single entrypoint. TUI is standalone, wraps `ood` via `execSync`.
 
 ## Commands
 
-**Always use `bash ood <command>` — never guess Docker commands directly.**
+**Always use `bash ood <command>` — never guess Docker commands.**
 
-```
-bash ood build        # Build Docker images (doc-base + api)
-bash ood up           # Start all services via docker compose
-bash ood up --only api   # Start only the API service
-bash ood down         # Stop all services
-bash ood status       # Show container status
-bash ood clean        # Stop + prune containers
-bash ood doctor       # Check dependencies (Docker, Bun, curl, Python3)
-bash ood list         # List available docs
-bash ood tui          # Start Terminal UI (standalone, no API needed)
+```bash
+# System
+bash ood doctor           # Check dependencies
+bash ood build           # Build Docker images
+
+# Services
+bash ood up              # Start all services
+bash ood up --only api    # Start only API
+bash ood down            # Stop all services
+bash ood status          # Show container status
+bash ood clean           # Stop and prune containers
+
+# Info
+bash ood list            # List available docs
+bash ood help            # Show help
+bash ood tui             # Open Terminal UI
+
+# Testing
+bash ood test --dep       # Run dependency tests
+bash ood test --api      # Run API tests
+
+# Options
 bash ood --port=api=9000 up   # Custom port
 ```
 
@@ -28,144 +55,133 @@ bash ood --port=api=9000 up   # Custom port
 ```
 ood (bash) ──┬── docker compose ── api (PHP Slim 4, port 8080)
 │            │                     └── manager (Python + docker-py, via proc_open)
-│            │
 │            └── doc-base image ── mkdocs / astro / jekyll / static containers
-│
-└── TUI (bun/@opentui/core) ── execSync("bash ood ...")
+
+TUI (bun/@opentui/core) ── execSync("bash ood ...")
 ```
 
-### Component Details
+### Request Flow
+
+**API**: HTTP → `index.php` → `Application.php` → `DocsController.php` → `proc_open("python3 manager.py")` → Docker
+
+**TUI**: Keypress → `index.ts` → `execSync("bash ood")` → scripts → docker compose
+
+## Components
 
 | Component | Path | Stack | Purpose |
 |-----------|------|-------|---------|
-| CLI | `ood` + `scripts/*.sh` | Bash | Single entrypoint, modular scripts |
-| API | `api/` | PHP Slim 4 + PSR-7 | HTTP management interface (port 8080) |
-| Manager | `manager/manager.py` | Python + docker-py | Docker container lifecycle (start/stop/list/status) |
-| TUI | `tui/index.ts` | Bun + @opentui/core v0.1.97 | Standalone terminal menu, calls `bash ood` directly |
-| Docker | `docker/` | Docker compose | Dev + prod compose files, base images |
-| Docs | `docs/` | Read-only | Aggregated documentation (do not edit) |
-
-### Request Flow (API path)
-
-```
-HTTP → api/public/index.php → Application.php → DocsController.php
-  → proc_open("python3 manager/manager.py <cmd>") → Docker API
-```
-
-### Request Flow (TUI path)
-
-```
-User keypress → tui/index.ts → execSync("bash ood <cmd>") → scripts/*.sh → docker compose
-```
+| CLI | `ood` + `scripts/*.sh` | Bash | Entrypoint, modular scripts |
+| API | `api/` | PHP Slim 4 + PSR-7 | HTTP interface |
+| Manager | `manager/manager.py` | Python + docker-py | Container lifecycle |
+| TUI | `tui/index.ts` | Bun + @opentui/core | Terminal UI |
+| Docker | `docker/` | Compose | Dev + prod images |
+| Docs | `docs/` | Read-only | Documentation |
 
 ### Key Files
 
 | File | Purpose |
 |------|---------|
-| `ood` | CLI entrypoint, loads .env, sources scripts, dispatches commands |
-| `scripts/vars.sh` | Configuration, port defaults, directory paths |
-| `scripts/flags.sh` | Argument parsing (`--only`, `--port`, command flags) |
-| `scripts/docker.sh` | Docker build/up/down/status/clean operations |
-| `scripts/functions.sh` | User-facing commands (list, help, doctor, tui, notice) |
-| `api/public/index.php` | API HTTP entry point, bootstraps Slim app via DI container |
-| `api/src/Application.php` | Route definitions (/, /docs, /docs/{name}/start|stop|status) |
-| `api/src/DocsController.php` | Request handlers, DOCS_CONFIG, calls manager via proc_open |
-| `manager/manager.py` | Docker container CRUD via docker-py, JSON output |
-| `docker/entrypoint.sh` | Doc container startup script, detects DOC_TYPE and runs server |
-| `docker/requirements.txt` | Python deps for doc containers (MkDocs, themes, plugins, FastAPI) |
-| `ascii-text-art.txt` | ASCII logo displayed by help/notice commands and TUI welcome screen |
+| `ood` | CLI entrypoint |
+| `scripts/vars.sh` | Config, ports, paths |
+| `scripts/flags.sh` | Argument parsing |
+| `scripts/docker.sh` | Docker operations |
+| `scripts/functions.sh` | User commands |
+| `api/public/index.php` | HTTP entry |
+| `api/src/Application.php` | Routes |
+| `api/src/DocsController.php` | Request handlers |
+| `manager/manager.py` | Container CRUD |
+| `docker/entrypoint.sh` | Doc startup |
 
-## API Endpoints
+## API
+
+### Endpoints
 
 ```
-GET  /                          # Health check
-GET  /docs                      # List all docs with status
-POST /docs/{name}/start         # Start a doc container
-POST /docs/{name}/stop          # Stop and remove a doc container
-GET  /docs/{name}/status        # Get status of a specific doc
+GET  /                      # Health
+GET  /docs                  # List docs
+POST /docs/{name}/start     # Start doc
+POST /docs/{name}/stop     # Stop doc
+GET  /docs/{name}/status   # Doc status
 ```
 
-## TUI Quirks
+## TUI
 
-- **No build step**: `bun build` will fail — `@opentui/core` imports `bun:ffi` which only works at runtime
-- **Always run with**: `bun run index.ts`
-- **Construct API**: `Box(props, ...children)` and `Text(props)` from `@opentui/core` v0.1.97
-- **Key handling**: `renderer.keyInput.on("keypress", handler)` — KeyEvent has `.name`, `.ctrl`, `.shift`, `.meta`
-- **Re-render pattern**: `renderer.root.remove("app")` then `renderer.root.add(Box({id: "app", ...}, ...children))`
-- **Exit**: `renderer.destroy()` then `process.exit(0)`
-- **Env var**: `OTUI_USE_CONSOLE=false` set by `bash ood tui` in `scripts/functions.sh`
-- **BASE_DIR**: Loaded from `.env` file, falls back to repo root. Copy `.env.example` to `.env` and set your path
-- **Layout**: Full-screen two-panel UI — left panel (commands), right panel (output). Vim keys: `j`/`k` navigate, `Enter` execute, `q` quit
+- **No build** — `@opentui/core` uses `bun:ffi`, runtime only
+- **Run with**: `bun run index.ts`
+- **API**: `Box(props, ...children)`, `Text(props)`
+- **Key handling**: `renderer.keyInput.on("keypress", handler)`
+- **Re-render**: `renderer.root.remove("app")` then `renderer.root.add(Box(...))`
+- **Exit**: `renderer.destroy()` + `process.exit(0)`
+- **Layout**: Two-panel — left (commands), right (output)
+- **Nav**: `j`/`k` navigate, `Enter` execute, `q` quit
 
-## Doc Container Types
+## Containers
 
-| Type | Docs | Server Command | Port |
-|------|------|----------------|------|
-| mkdocs | fastapi, alpine | `mkdocs serve --dev-addr 0.0.0.0:<port>` | 8000, 8002 |
-| astro | astro | `pnpm dev` or `npm run dev` | 8001 |
-| jekyll | slimphp | `bundle exec jekyll serve --host 0.0.0.0 --port <port>` | 8005 |
-| static | php, python | `python3 -m http.server <port>` | 8003, 8004 |
+| Type | Docs | Command |
+|------|------|---------|
+| mkdocs | fastapi, alpine | `mkdocs serve --dev-addr 0.0.0.0:<port>` |
+| astro | astro | `pnpm dev` or `npm run dev` |
+| jekyll | slimphp | `bundle exec jekyll serve --host 0.0.0.0 --port <port>` |
+| static | php, python | `python3 -m http.server <port>` |
 
-Container naming: `ood-doc-<name>` (docs), `ood-api` (API)
-All containers share `ood-network` Docker network.
+- Naming: `ood-doc-<name>`, `ood-api`
+- Network: `ood-network`
 
-### Container Lifecycle (manager.py)
+### Lifecycle
 
-1. **Start**: Checks if container exists → if running, returns already_running → if stopped, starts it → otherwise creates new container via `client.containers.run()`
-2. **Stop**: Stops if running (10s timeout), then removes with `force=True`
-3. **Status**: Returns container status, port, type, and short ID
-4. **List**: Iterates all containers, filters by `ood-doc-` prefix, extracts doc name and port mappings
+1. **Start**: Check exists → running? return already_running : stopped? start : create
+2. **Stop**: Stop (10s timeout), then remove `force=True`
+3. **Status**: Return status, port, type, short ID
+4. **List**: Filter `ood-doc-*`, extract name + ports
 
-## Docker Images
+## Docker
 
-- **`ood-api:latest`** — PHP 8.2 + Python 3 + Node.js + Ruby. Built from `docker/Dockerfile` (dev) or `docker/Dockerfile.prod`
-- **`ood-doc-base:latest`** — Python 3.11-slim + Node.js 20 + Ruby + MkDocs + all Python deps. Built from `docker/Dockerfile.doc`
-- API mounts Docker socket (`/var/run/docker.sock`) so the manager can control containers
-- Dev compose mounts `manager/` and `docs/` as read-only volumes; prod bakes them into the image
+### Images
+
+- `ood-api:latest` — PHP 8.2 + Python 3 + Node.js + Ruby
+- `ood-doc-base:latest` — Python 3.11-slim + Node.js 20 + Ruby + MkDocs
 
 ### Dev vs Prod
 
-| Aspect | Dev (`docker-compose.yml`) | Prod (`docker-compose.prod.yml`) |
-|--------|---------------------------|----------------------------------|
-| API Dockerfile | `docker/Dockerfile` | `docker/Dockerfile.prod` |
-| Docs content | Mounted as read-only volume | Baked into image |
-| Manager | Mounted as read-only volume | Baked into image |
-| Use case | Local development | Production deployment |
+| Aspect | Dev | Prod |
+|--------|-----|------|
+| Dockerfile | `docker/Dockerfile` | `docker/Dockerfile.prod` |
+| Docs | Mount volume | Baked in |
+| Manager | Mount volume | Baked in |
 
 ## Environment
 
-- **`.env`** — Optional. Set `BASE_DIR` to override the project root path. Copy `.env.example` to `.env` to configure.
-- **`.env.example`** — Committed template. `.env` is gitignored.
-- `ood` loads `.env` automatically if it exists (before sourcing scripts).
-- TUI reads `BASE_DIR` from `.env` at runtime, falls back to `../` relative to `tui/index.ts`.
-- Manager uses `OOD_DOCS_PATH` env var, falls back to `../docs` relative to `manager/manager.py`.
+- `.env` — Optional. Set `BASE_DIR`. Copy `.env.example` to `.env`.
+- `ood` loads `.env` automatically
+- TUI reads `BASE_DIR` from `.env`, falls back to repo root
+- Manager uses `OOD_DOCS_PATH`, falls back to `../docs`
 
-## Code Conventions
+## Conventions
 
-**Python (manager/)**: Standard lib → third-party → local. Type hints required. All output via `json_output()`/`json_error()` with proper exit codes. Uses `argparse` with subparsers for command routing.
+**Python**: Standard lib → third-party → local. Type hints. `json_output()`/`json_error()`. `argparse` with subparsers.
 
-**PHP (api/)**: Slim 4, PSR-7. `declare(strict_types=1)` on all files. Routes in `Application.php`. Controller in `DocsController.php`. Uses `proc_open` to call manager, parses JSON responses. DI container via PHP-DI.
+**PHP**: Slim 4, PSR-7. `declare(strict_types=1)`. Routes in `Application.php`. Controller in `DocsController.php`. `proc_open` to manager. DI via PHP-DI.
 
-**TypeScript (tui/)**: Bun runtime only, no build. Use `execSync` for shell commands. Async/await for any API calls. ESM modules (`"type": "module"` in package.json).
+**TypeScript**: Bun runtime only, no build. `execSync` for shell. Async/await. ESM (`"type": "module"`).
 
-**Bash (scripts/)**: Modular — `vars.sh` (config), `flags.sh` (arg parsing), `docker.sh` (docker ops), `functions.sh` (user-facing commands). All sourced by `ood`. Uses `set -e`. All functions use `echo` for output, no external dependencies.
+**Bash**: Modular scripts. `vars.sh` → `flags.sh` → `docker.sh` → `functions.sh`. All sourced by `ood`. `set -e`. Functions use `echo`, no deps.
 
-## Known Issues
+## Issues
 
-- `Dockerfile.doc` may appear as binary in some tools — it's valid UTF-8 text
-- No test suite, linter, or typechecker configured
-- Port defaults in `vars.sh` do not match `manager.py`/`DocsController.php` — the manager and controller configs are the source of truth
+- `Dockerfile.doc` may appear binary — it's valid UTF-8
+- No test suite, linter, or typechecker
+- `vars.sh` ports don't match manager/controller — they're the source of truth
 
-## Port Defaults
+## Ports
 
-Source of truth is `manager.py` DOCS_CONFIG and `DocsController.php` DOCS_CONFIG (they must match):
+Source of truth: `manager.py` DOCS_CONFIG + `DocsController.php` DOCS_CONFIG (must match).
 
 | Service | Port |
 |---------|------|
 | API | 8080 |
-| FastAPI doc | 8000 |
-| Astro doc | 8001 |
-| Alpine doc | 8002 |
-| PHP doc | 8003 |
-| Python doc | 8004 |
-| SlimPHP doc | 8005 |
+| FastAPI | 8000 |
+| Astro | 8001 |
+| Alpine | 8002 |
+| PHP | 8003 |
+| Python | 8004 |
+| SlimPHP | 8005 |
