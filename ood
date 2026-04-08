@@ -2,23 +2,20 @@
 
 set -e
 
-# Load .env if it exists
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ -f "$SCRIPT_DIR/.env" ]; then
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$ROOT_DIR/.env" ]; then
   set -a
-  source "$SCRIPT_DIR/.env"
+  source "$ROOT_DIR/.env"
   set +a
 fi
 
-# Source all modular scripts
-SCRIPTS_DIR="$SCRIPT_DIR/scripts"
+SCRIPTS_DIR="$ROOT_DIR/scripts"
 
 source "$SCRIPTS_DIR/vars.sh"
 source "$SCRIPTS_DIR/flags.sh"
 source "$SCRIPTS_DIR/docker.sh"
 source "$SCRIPTS_DIR/functions.sh"
 
-# Command execution
 if $BUILD; then
   docker_build
   exit 0
@@ -69,5 +66,9 @@ if $TUI; then
   exit 0
 fi
 
-# No command specified - show notice
+if $TEST; then
+  run_test
+  exit 0
+fi
+
 run_notice
