@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Command flag parsing
 
 ONLY=""
 LIST=false
@@ -12,6 +11,9 @@ UP=false
 DOWN=false
 TUI=false
 DOCTOR=false
+TEST=false
+TEST_DEP=false
+TEST_API=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -21,6 +23,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     doctor)
       DOCTOR=true
+      shift
+      ;;
+    test)
+      TEST=true
+      shift
+      ;;
+    --dep)
+      TEST_DEP=true
+      shift
+      ;;
+    --api)
+      TEST_API=true
       shift
       ;;
     clean)

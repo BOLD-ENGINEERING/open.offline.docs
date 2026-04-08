@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Docker-related functions
 
 docker_build() {
+  echo ""
+  cat "$BASE_DIR/banner.txt"
+  echo ""
   echo "[docker] Building Docker images..."
   cd "$BASE_DIR"
   
@@ -18,6 +20,9 @@ docker_build() {
 }
 
 docker_up() {
+  echo ""
+  cat "$BASE_DIR/banner.txt"
+  echo ""
   echo "[docker] Starting services..."
   cd "$BASE_DIR"
   
@@ -48,6 +53,9 @@ docker_up() {
 }
 
 docker_down() {
+  echo ""
+  cat "$BASE_DIR/banner.txt"
+  echo ""
   echo "[docker] Stopping services..."
   cd "$BASE_DIR"
   
@@ -71,14 +79,37 @@ docker_down() {
 }
 
 docker_status() {
+  echo ""
+  cat "$BASE_DIR/banner.txt"
+  echo ""
   echo "[docker] Service status:"
   cd "$BASE_DIR"
   docker compose -f "$DOCKER_DIR/docker-compose.yml" ps
 }
 
 docker_clean() {
+  echo ""
+  cat "$BASE_DIR/banner.txt"
+  echo ""
   echo "[docker] Cleaning up..."
-  docker_down
+  cd "$BASE_DIR"
+  
+  if [ -n "$ONLY" ]; then
+    IFS=',' read -ra SERVICES <<< "$ONLY"
+    for svc in "${SERVICES[@]}"; do
+      case "$svc" in
+        api)
+          echo "[docker] Stopping API..."
+          docker compose -f "$DOCKER_DIR/docker-compose.yml" stop api
+          ;;
+        *)
+          echo "[docker] Unknown service: $svc"
+          ;;
+      esac
+    done
+  else
+    docker compose -f "$DOCKER_DIR/docker-compose.yml" down
+  fi
   
   echo "[docker] Pruning unused containers..."
   docker container prune -f

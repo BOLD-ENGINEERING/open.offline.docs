@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# General functions
 
 run_list() {
-  echo
+  echo ""
+  cat "$BASE_DIR/banner.txt"
+  echo ""
   echo "Available Documentation Sites:"
   echo "  php       - Complete PHP language documentation"
   echo "  python    - Full Python programming language documentation"
@@ -17,7 +18,7 @@ run_list() {
 
 run_help() {
   echo ""
-  cat "$BASE_DIR/ascii-text-art.txt"
+  cat "$BASE_DIR/banner.txt"
   echo ""
   echo "  Open Offline Docs - Docker-based Documentation System"
   echo "  ------------------------------------------------------------"
@@ -33,6 +34,8 @@ run_help() {
   echo "    clean            Clean up containers and images"
   echo "    tui              Start Terminal UI"
   echo "    list             List available docs"
+  echo "    test --dep       Run dependency tests"
+  echo "    test --api       Run API tests"
   echo "    help             Show this help"
   echo ""
   echo "  DOC MANAGEMENT:"
@@ -48,12 +51,14 @@ run_help() {
   echo "    bash ood up --only api && bash ood tui  # API + TUI"
   echo "    bash ood status                          # Check status"
   echo "    bash ood clean                           # Full cleanup"
+  echo "    bash ood test --dep                      # Run dependency tests"
+  echo "    bash ood test --api                      # Run API tests"
   echo ""
 }
 
 run_notice() {
   echo ""
-  cat "$BASE_DIR/ascii-text-art.txt"
+  cat "$BASE_DIR/banner.txt"
   echo ""
   echo "  Open Offline Docs - Docker-based Documentation System"
   echo ""
@@ -63,6 +68,9 @@ run_notice() {
 }
 
 run_doctor() {
+  echo ""
+  cat "$BASE_DIR/banner.txt"
+  echo ""
   echo "Running system diagnostics..."
   echo ""
   
@@ -123,7 +131,27 @@ run_doctor() {
 }
 
 run_tui() {
+  echo ""
+  cat "$BASE_DIR/banner.txt"
+  echo ""
   echo "[tui] Starting Terminal UI..."
   cd "$BASE_DIR/tui"
   bun run index.ts 2>&1
+}
+
+run_test() {
+  echo ""
+  cat "$BASE_DIR/banner.txt"
+  echo ""
+  if $TEST_DEP; then
+    echo "[test] Running dependency tests..."
+    bash "$BASE_DIR/tests/deps.sh"
+  elif $TEST_API; then
+    echo "[test] Running API tests..."
+    bash "$BASE_DIR/tests/api.sh"
+  else
+    echo "[test] Usage:"
+    echo "  bash ood test --dep   # Run dependency tests"
+    echo "  bash ood test --api  # Run API tests (requires API running)"
+  fi
 }
