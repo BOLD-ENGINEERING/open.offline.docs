@@ -10,7 +10,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 pass() { echo -e "${GREEN}[PASS]${NC} $1"; }
-fail() { echo -e "${RED}[FAIL]${NC} $1"; exit 1; }
+fail() { echo -e "${RED}[FAIL]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
 EXPECTED_PYTHON="3"
@@ -23,6 +23,7 @@ echo "============================================="
 echo ""
 
 issues=0
+missing_deps=()
 
 # Docker
 echo -n "Docker: "
@@ -33,10 +34,12 @@ if command -v docker &> /dev/null; then
     else
         fail "docker $version (expected: $EXPECTED_DOCKER+)"
         issues=$((issues + 1))
+        missing_deps+=("docker")
     fi
 else
     fail "not found"
     issues=$((issues + 1))
+    missing_deps+=("docker")
 fi
 
 # docker-compose
@@ -48,10 +51,12 @@ if command -v docker &> /dev/null; then
     else
         fail "plugin not available"
         issues=$((issues + 1))
+        missing_deps+=("docker-compose")
     fi
 else
     fail "docker not installed"
     issues=$((issues + 1))
+    missing_deps+=("docker")
 fi
 
 # Python 3
@@ -63,10 +68,12 @@ if command -v python3 &> /dev/null; then
     else
         fail "python3 $version (expected: 3+)"
         issues=$((issues + 1))
+        missing_deps+=("python")
     fi
 else
     fail "not found"
     issues=$((issues + 1))
+    missing_deps+=("python")
 fi
 
 # curl
@@ -78,10 +85,12 @@ if command -v curl &> /dev/null; then
     else
         fail "curl $version (expected: 7+)"
         issues=$((issues + 1))
+        missing_deps+=("curl")
     fi
 else
     fail "not found"
     issues=$((issues + 1))
+    missing_deps+=("curl")
 fi
 
 # Bun (optional)
@@ -110,5 +119,26 @@ else
     echo "============================================="
     echo -e "${RED}$issues issue(s) found. Please install missing dependencies.${NC}"
     echo "============================================="
+    echo ""
+    echo "Recommended:"
+    for dep in "${missing_deps[@]}"; do
+        case "$dep" in
+            docker)
+                echo "  Docker:       https://www.docker.com/get-started/"
+                ;;
+            docker-compose)
+                echo "  docker-compose: https://docs.docker.com/compose/install/"
+                ;;
+            python)
+                echo "  Python 3:     https://www.python.org/downloads/"
+                ;;
+            curl)
+                echo "  curl:         https://curl.se/download.html"
+                ;;
+        esac
+    done
+    echo ""
+    echo "Optional (for TUI):"
+    echo "  Bun:          https://bun.sh/"
     exit 1
 fi

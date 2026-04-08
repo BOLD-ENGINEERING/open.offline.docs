@@ -50,13 +50,13 @@ bash ood tui
 
 Before using Open Offline Docs, ensure these are installed on your system:
 
-| Dependency | Required | Purpose |
-|-----------|----------|---------|
-| Docker | Yes | Container runtime |
-| docker-compose | Yes | Multi-container orchestration |
-| Python 3 | Yes | Manager service (container control) |
-| curl | Yes | HTTP API testing |
-| Bun | Optional | Terminal UI runtime |
+| Dependency | Required | Purpose | Install |
+|-----------|----------|---------|---------|
+| [Docker](https://www.docker.com/) | Yes | Container runtime | [Download](https://www.docker.com/get-started/) |
+| [docker-compose](https://docs.docker.com/compose/) | Yes | Multi-container orchestration | [Install](https://docs.docker.com/compose/install/) |
+| [Python 3](https://www.python.org/) | Yes | Manager service (container control) | [Download](https://www.python.org/downloads/) |
+| [curl](https://curl.se/) | Yes | HTTP API testing | [Install](https://curl.se/download.html) |
+| [Bun](https://bun.sh/) | Optional | Terminal UI runtime | [Install](https://bun.sh/) |
 
 Verify all dependencies:
 
