@@ -54,16 +54,68 @@ class DocsController
         ],
     ];
 
+    private function callManager(array $args): array
+    {
+        $managerPath = dirname(__DIR__, 2) . '/manager/manager.py';
+
+        $cmd = array_merge(['python3', $managerPath], $args);
+        $cmdStr = implode(' ', $cmd);
+
+        $descriptorSpec = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = proc_open($cmdStr, $descriptorSpec, $pipes);
+
+        if (!is_resource($process)) {
+            return ['error' => 'Failed to execute manager'];
+        }
+
+        fclose($pipes[0]);
+
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+
+        proc_close($process);
+
+        if ($stderr) {
+            error_log("Manager error: {$stderr}");
+        }
+
+        $decoded = json_decode($stdout, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return ['error' => 'Invalid JSON from manager', 'raw' => $stdout];
+        }
+
+        return $decoded ?? ['error' => 'Empty response from manager'];
+    }
+
+    private function jsonSuccess(Response $response, $data, int $status = 200): Response
+    {
+        $response->getBody()->write(json_encode($data));
+        return $response
+            ->withStatus($status)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    private function jsonError(Response $response, string $message, int $status = 500): Response
+    {
+        return $this->jsonSuccess($response, ['error' => $message], $status);
+    }
+
     public function list(Request $request, Response $response): Response
     {
         $result = $this->callManager(['list']);
-        
+
         if (isset($result['error'])) {
             return $this->jsonError($response, $result['error'], 500);
         }
 
         $runningDocs = is_array($result) ? $result : [];
-        
+
         $runningMap = [];
         foreach ($runningDocs as $doc) {
             $runningMap[$doc['doc_name'] ?? $doc['name']] = $doc;
@@ -89,7 +141,7 @@ class DocsController
     public function start(Request $request, Response $response, array $args): Response
     {
         $name = $args['name'] ?? null;
-        
+
         if (!$name) {
             return $this->jsonError($response, 'Doc name is required', 400);
         }
@@ -102,7 +154,7 @@ class DocsController
         $port = $config['default_port'];
 
         $result = $this->callManager(['start', $name, (string)$port]);
-        
+
         if (isset($result['error'])) {
             return $this->jsonError($response, $result['error'], 500);
         }
@@ -113,13 +165,13 @@ class DocsController
     public function stop(Request $request, Response $response, array $args): Response
     {
         $name = $args['name'] ?? null;
-        
+
         if (!$name) {
             return $this->jsonError($response, 'Doc name is required', 400);
         }
 
         $result = $this->callManager(['stop', $name]);
-        
+
         if (isset($result['error'])) {
             return $this->jsonError($response, $result['error'], 500);
         }
@@ -130,69 +182,17 @@ class DocsController
     public function status(Request $request, Response $response, array $args): Response
     {
         $name = $args['name'] ?? null;
-        
+
         if (!$name) {
             return $this->jsonError($response, 'Doc name is required', 400);
         }
 
         $result = $this->callManager(['status', $name]);
-        
+
         if (isset($result['error'])) {
             return $this->jsonError($response, $result['error'], 500);
         }
 
         return $this->jsonSuccess($response, $result);
-    }
-
-    private function callManager(array $args): array
-    {
-        $managerPath = dirname(__DIR__, 2) . '/manager/manager.py';
-        
-        $cmd = array_merge(['python3', $managerPath], $args);
-        $cmdStr = implode(' ', $cmd);
-        
-        $descriptorSpec = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
-        
-        $process = proc_open($cmdStr, $descriptorSpec, $pipes);
-        
-        if (!is_resource($process)) {
-            return ['error' => 'Failed to execute manager'];
-        }
-        
-        fclose($pipes[0]);
-        
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        
-        proc_close($process);
-        
-        if ($stderr) {
-            error_log("Manager error: {$stderr}");
-        }
-        
-        $decoded = json_decode($stdout, true);
-        
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            return ['error' => 'Invalid JSON from manager', 'raw' => $stdout];
-        }
-        
-        return $decoded ?? ['error' => 'Empty response from manager'];
-    }
-
-    private function jsonSuccess(Response $response, $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data));
-        return $response
-            ->withStatus($status)
-            ->withHeader('Content-Type', 'application/json');
-    }
-
-    private function jsonError(Response $response, string $message, int $status = 500): Response
-    {
-        return $this->jsonSuccess($response, ['error' => $message], $status);
     }
 }

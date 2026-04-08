@@ -1,6 +1,4 @@
 #!/bin/bash
-# Doc Container Entrypoint
-# Detects doc type and runs appropriate server
 
 set -e
 
@@ -22,7 +20,6 @@ case "$DOC_TYPE" in
         ;;
     astro)
         echo "Starting Astro dev server..."
-        # Check if pnpm is available, otherwise use npm
         if command -v pnpm &> /dev/null; then
             exec pnpm dev -- --host "0.0.0.0" --port "$PORT"
         else

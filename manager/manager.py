@@ -22,13 +22,11 @@ import sys
 from typing import Any, Optional
 
 import docker
-from docker.errors import NotFound, APIError
+from docker.errors import NotFound, APIError # type: ignore
 
-# Constants
 CONTAINER_PREFIX = "ood-doc-"
 DEFAULT_DOCS_PATH = os.environ.get("OOD_DOCS_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs"))
 
-# Doc type configurations
 DOC_CONFIGS = {
     "fastapi": {
         "path": "fastapi.docs",
@@ -67,7 +65,7 @@ def get_docker_client():
     """Get Docker client with error handling."""
     try:
         return docker.from_env()
-    except docker.errors.DockerException as e:
+    except docker.errors.DockerException as e: # type: ignore
         json_error(f"Docker is not available: {str(e)}")
 
 
@@ -96,7 +94,7 @@ def get_container(name: str):
     global client
     container_name = get_container_name(name)
     try:
-        return client.containers.get(container_name)
+        return client.containers.get(container_name) # type: ignore
     except NotFound:
         return None
     except APIError as e:
@@ -113,7 +111,7 @@ def get_container(name: str):
 def cmd_list(args: Any) -> None:
     """List all running doc containers."""
     try:
-        all_containers = client.containers.list(all=True)
+        all_containers = client.containers.list(all=True) # type: ignore
         running_docs = []
 
         for container in all_containers:
@@ -121,7 +119,6 @@ def cmd_list(args: Any) -> None:
                 doc_name = container.name[len(CONTAINER_PREFIX):]
                 config = DOC_CONFIGS.get(doc_name, {})
                 
-                # Get port mappings
                 ports = container.ports or {}
                 host_port = None
                 for container_port, host_bindings in ports.items():
@@ -138,7 +135,7 @@ def cmd_list(args: Any) -> None:
                     "id": container.id[:12],
                 })
 
-        json_output(running_docs)
+        json_output(running_docs) # type: ignore
     except APIError as e:
         json_error(f"Failed to list containers: {str(e)}")
     except Exception as e:
@@ -157,11 +154,9 @@ def cmd_start(args: Any) -> None:
     container_name = get_container_name(name)
     docs_path = DEFAULT_DOCS_PATH
 
-    # Check if container already exists
     existing = get_container(name)
     if existing:
         if existing.status == "running":
-            # Get port info
             ports = existing.ports or {}
             host_port = None
             for container_port, host_bindings in ports.items():
@@ -173,44 +168,38 @@ def cmd_start(args: Any) -> None:
                 "status": "already_running",
                 "name": container_name,
                 "port": host_port,
-                "id": existing.id[:12],
+                "id": existing.id[:12], # type: ignore
             })
             return
         else:
-            # Start stopped container
             try:
                 existing.start()
                 json_output({
                     "status": "started",
                     "name": container_name,
                     "port": port,
-                    "id": existing.id[:12],
+                    "id": existing.id[:12], # type: ignore
                 })
                 return
             except APIError as e:
                 json_error(f"Failed to start container: {str(e)}")
 
-    # Create and start new container
     doc_type = config["type"]
     doc_path = f"{docs_path}/{config['path']}"
     
-    # Build volume mappings
     volumes = {}
     working_dir = "/app"
     
-    # Entrypoint script and environment
     env = {
         "DOC_TYPE": doc_type,
         "PORT": str(port),
         "DOC_PATH": working_dir,
     }
     
-    # Build run command based on doc type
     if doc_type == "mkdocs":
         cmd = f"python3 -m mkdocs serve --dev-addr 0.0.0.0:{port}"
         volumes = {doc_path: {"bind": working_dir, "mode": "ro"}}
     elif doc_type == "astro":
-        # Astro needs npm install first
         volumes = {doc_path: {"bind": working_dir, "mode": "ro"}}
         working_dir = f"{working_dir}/.."
     elif doc_type == "jekyll":
@@ -222,13 +211,12 @@ def cmd_start(args: Any) -> None:
     else:
         json_error(f"Unknown doc type: {doc_type}")
 
-    # Use custom image with all dependencies
     image = "ood-doc-base:latest"
 
     try:
-        container = client.containers.run(
+        container = client.containers.run( # type: ignore
             image,
-            cmd,
+            cmd, # type: ignore
             name=container_name,
             ports={"80/tcp": port, f"{port}/tcp": port},
             volumes=volumes,
@@ -242,7 +230,7 @@ def cmd_start(args: Any) -> None:
             "status": "started",
             "name": container_name,
             "port": port,
-            "id": container.id[:12],
+            "id": container.id[:12], # type: ignore
         })
     except APIError as e:
         json_error(f"Failed to start container: {str(e)}")
@@ -295,7 +283,6 @@ def cmd_status(args: Any) -> None:
         })
         return
 
-    # Get port mappings
     ports = container.ports or {}
     host_port = None
     for container_port, host_bindings in ports.items():
@@ -311,7 +298,7 @@ def cmd_status(args: Any) -> None:
         "status": container.status,
         "port": host_port,
         "type": config.get("type", "unknown"),
-        "id": container.id[:12],
+        "id": container.id[:12], # type: ignore
     })
 
 
@@ -321,19 +308,15 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # list command
     list_parser = subparsers.add_parser("list", help="List all doc containers")
 
-    # start command
     start_parser = subparsers.add_parser("start", help="Start a doc container")
     start_parser.add_argument("name", help="Name of the doc to start")
     start_parser.add_argument("port", type=int, help="Port to bind to")
 
-    # stop command
     stop_parser = subparsers.add_parser("stop", help="Stop a doc container")
     stop_parser.add_argument("name", help="Name of the doc to stop")
 
-    # status command
     status_parser = subparsers.add_parser("status", help="Get container status")
     status_parser.add_argument("name", help="Name of the doc")
 
@@ -343,7 +326,6 @@ def main():
         parser.print_help()
         json_error("No command specified")
 
-    # Route to appropriate handler
     if args.command == "list":
         cmd_list(args)
     elif args.command == "start":

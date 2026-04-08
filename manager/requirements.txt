@@ -1,2 +1,1 @@
-# Docker Python SDK (for manager)
 docker>=7.0.0

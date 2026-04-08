@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App;
 
 use Slim\Factory\AppFactory;
-use Slim\Interfaces\RouteCollectorProxyInterface;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -16,9 +15,9 @@ class Application
     public function __construct()
     {
         $app = AppFactory::create();
-        
+
         $this->registerRoutes($app);
-        
+
         $this->app = $app;
     }
 
